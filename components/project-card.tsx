@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Archive, ArchiveRestore, ChevronDown, ListTodo } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronDown, ListTodo, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
+import { TaskList } from "@/components/task-list";
 import { archiveProject } from "@/app/actions/projects";
 import { cn } from "@/lib/utils";
+import type { TaskWithUnits } from "@/components/task-row";
 
 interface ProjectCardProps {
   project: {
@@ -17,6 +19,7 @@ interface ProjectCardProps {
     status: "active" | "archived";
     createdAt: Date;
     _count: { tasks: number };
+    tasks: TaskWithUnits[];
   };
 }
 
@@ -24,6 +27,9 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const isArchived = project.status === "archived";
+
+  const doneTasks = project.tasks.filter((t) => t.status === "done").length;
+  const totalTasks = project._count.tasks;
 
   async function handleArchive() {
     setArchiving(true);
@@ -90,16 +96,24 @@ export function ProjectCard({ project }: ProjectCardProps) {
         <div className="flex items-center gap-4 mt-1 ml-6">
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <ListTodo className="h-3 w-3" />
-            {project._count.tasks} {project._count.tasks === 1 ? "task" : "tasks"}
+            {totalTasks} {totalTasks === 1 ? "task" : "tasks"}
           </span>
+          {doneTasks > 0 && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <CheckCircle2 className="h-3 w-3" />
+              {doneTasks} done
+            </span>
+          )}
         </div>
       </CardHeader>
 
       {expanded && (
         <CardContent className="border-t border-border px-4 py-3">
-          <p className="text-xs text-muted-foreground">
-            Tasks will appear here once you build them in Step 5.
-          </p>
+          <TaskList
+            tasks={project.tasks}
+            projectId={project.id}
+            projectColor={project.color}
+          />
         </CardContent>
       )}
     </Card>

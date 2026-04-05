@@ -20,6 +20,13 @@ export async function getProjects(includeArchived = false) {
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { tasks: true } },
+      tasks: {
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        include: {
+          _count: { select: { units: true } },
+          units: { select: { status: true } },
+        },
+      },
     },
   });
 }
