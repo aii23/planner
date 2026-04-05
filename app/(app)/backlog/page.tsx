@@ -1,6 +1,18 @@
-import { Inbox } from "lucide-react";
+import { connection } from "next/server";
+import { prisma } from "@/lib/db";
+import { getCurrentUser } from "@/lib/user";
+import { BacklogProjects } from "@/components/backlog-projects";
+import { getProjects } from "@/app/actions/projects";
 
-export default function BacklogPage() {
+export default async function BacklogPage() {
+  await connection();
+  const user = await getCurrentUser();
+  const projects = await getProjects(false);
+
+  const archivedCount = await prisma.project.count({
+    where: { userId: user.id, status: "archived" },
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -10,12 +22,10 @@ export default function BacklogPage() {
         </p>
       </div>
 
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-        <Inbox className="h-10 w-10 text-muted-foreground/40" />
-        <p className="mt-3 text-sm text-muted-foreground">
-          No projects yet. Create your first project to get started.
-        </p>
-      </div>
+      <BacklogProjects
+        initialProjects={projects}
+        hasArchived={archivedCount > 0}
+      />
     </div>
   );
 }
