@@ -51,6 +51,7 @@ export function DayColumn({ daily, onChanged }: DayColumnProps) {
     setSaving(true);
     await updateDailyTarget(daily.id, target);
     setSaving(false);
+    onChanged();
   }
 
   async function handleUnschedule(suId: string) {
