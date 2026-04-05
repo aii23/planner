@@ -1,5 +1,5 @@
 import { connection } from "next/server";
-import { getOrCreateWeeklyPlan } from "@/app/actions/weekly-plan";
+import { getOrCreateWeeklyPlan, getUnscheduledUnits } from "@/app/actions/weekly-plan";
 import { WeeklyPlanView } from "@/components/weekly-plan-view";
 import { getMonday, toDateOnlyISO } from "@/lib/date-utils";
 
@@ -9,7 +9,11 @@ export default async function WeeklyPlanPage() {
   const now = new Date();
   const monday = getMonday(now);
   const mondayISO = toDateOnlyISO(monday);
-  const plan = await getOrCreateWeeklyPlan(mondayISO);
+
+  const [plan, backlog] = await Promise.all([
+    getOrCreateWeeklyPlan(mondayISO),
+    getUnscheduledUnits(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -20,7 +24,11 @@ export default async function WeeklyPlanPage() {
         </p>
       </div>
 
-      <WeeklyPlanView initialPlan={plan} initialMonday={mondayISO} />
+      <WeeklyPlanView
+        initialPlan={plan}
+        initialMonday={mondayISO}
+        initialBacklog={backlog}
+      />
     </div>
   );
 }

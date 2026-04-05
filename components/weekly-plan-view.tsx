@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect, useTransition } from "react";
+import { useState, useCallback, useTransition } from "react";
 import { Target } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { WeekSelector } from "@/components/week-selector";
 import { DayColumn, type DailyPlanData } from "@/components/day-column";
+import { SchedulingBacklog } from "@/components/scheduling-backlog";
 import {
   getMonday,
   addWeeks,
@@ -13,8 +14,19 @@ import {
 } from "@/lib/date-utils";
 import {
   getOrCreateWeeklyPlan,
+  getUnscheduledUnits,
   updateWeeklyTarget,
 } from "@/app/actions/weekly-plan";
+
+interface BacklogUnitItem {
+  id: string;
+  label: string | null;
+  task: {
+    id: string;
+    title: string;
+    project: { id: string; name: string; color: string };
+  };
+}
 
 interface WeeklyPlanData {
   id: string;
@@ -26,40 +38,54 @@ interface WeeklyPlanData {
 interface WeeklyPlanViewProps {
   initialPlan: WeeklyPlanData;
   initialMonday: string;
+  initialBacklog: BacklogUnitItem[];
 }
 
 export function WeeklyPlanView({
   initialPlan,
   initialMonday,
+  initialBacklog,
 }: WeeklyPlanViewProps) {
   const [monday, setMonday] = useState(() => new Date(initialMonday + "T00:00:00"));
   const [plan, setPlan] = useState<WeeklyPlanData>(initialPlan);
+  const [backlog, setBacklog] = useState<BacklogUnitItem[]>(initialBacklog);
   const [weeklyTarget, setWeeklyTarget] = useState(initialPlan.targetUnits);
   const [isPending, startTransition] = useTransition();
   const [savingTarget, setSavingTarget] = useState(false);
 
-  const loadWeek = useCallback(
-    (newMonday: Date) => {
-      setMonday(newMonday);
+  const refresh = useCallback(
+    (newMonday?: Date) => {
+      const m = newMonday ?? monday;
       startTransition(async () => {
-        const newPlan = await getOrCreateWeeklyPlan(toDateOnlyISO(newMonday));
+        const [newPlan, newBacklog] = await Promise.all([
+          getOrCreateWeeklyPlan(toDateOnlyISO(m)),
+          getUnscheduledUnits(),
+        ]);
         setPlan(newPlan);
-        setWeeklyTarget(newPlan.targetUnits);
+        setBacklog(newBacklog);
+        if (newMonday) {
+          setMonday(m);
+          setWeeklyTarget(newPlan.targetUnits);
+        }
       });
     },
-    []
+    [monday]
   );
 
   function handlePrev() {
-    loadWeek(addWeeks(monday, -1));
+    refresh(addWeeks(monday, -1));
   }
 
   function handleNext() {
-    loadWeek(addWeeks(monday, 1));
+    refresh(addWeeks(monday, 1));
   }
 
   function handleToday() {
-    loadWeek(getMonday(new Date()));
+    refresh(getMonday(new Date()));
+  }
+
+  function handleSchedulingChanged() {
+    refresh();
   }
 
   async function handleWeeklyTargetBlur() {
@@ -78,9 +104,16 @@ export function WeeklyPlanView({
     0
   );
 
+  const dayOptions = plan.dailyPlans.map((d) => ({
+    id: d.id,
+    date: d.date,
+    scheduledCount: d.scheduledUnits.length,
+    targetUnits: d.targetUnits,
+  }));
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <WeekSelector
           monday={monday}
           onPrev={handlePrev}
@@ -88,7 +121,7 @@ export function WeeklyPlanView({
           onToday={handleToday}
         />
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Target className="h-4 w-4 text-muted-foreground" />
             <label htmlFor="weekly-target" className="text-sm text-muted-foreground whitespace-nowrap">
@@ -121,18 +154,35 @@ export function WeeklyPlanView({
           </div>
 
           <div className="flex items-center gap-2 text-sm">
-            <Badge variant="secondary" className="tabular-nums">
-              {totalScheduled}
+            <Badge
+              variant={totalScheduled >= weeklyTarget ? "default" : "secondary"}
+              className="tabular-nums"
+            >
+              {totalScheduled}/{weeklyTarget}
             </Badge>
             <span className="text-muted-foreground text-xs">scheduled</span>
           </div>
         </div>
       </div>
 
-      <div className={`grid grid-cols-7 gap-2 ${isPending ? "opacity-60 pointer-events-none" : ""}`}>
-        {plan.dailyPlans.map((daily) => (
-          <DayColumn key={daily.id} daily={daily} />
-        ))}
+      <div className={`flex gap-4 ${isPending ? "opacity-60 pointer-events-none" : ""}`}>
+        <aside className="w-56 shrink-0 rounded-lg border border-border bg-card p-3 overflow-y-auto max-h-[calc(100vh-220px)]">
+          <SchedulingBacklog
+            units={backlog}
+            days={dayOptions}
+            onScheduled={handleSchedulingChanged}
+          />
+        </aside>
+
+        <div className="flex-1 grid grid-cols-7 gap-2 min-w-0">
+          {plan.dailyPlans.map((daily) => (
+            <DayColumn
+              key={daily.id}
+              daily={daily}
+              onChanged={handleSchedulingChanged}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

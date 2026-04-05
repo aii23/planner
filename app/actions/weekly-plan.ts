@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
 import { addDays, toDateOnlyISO } from "@/lib/date-utils";
+import type { UnitStatus } from "@/src/generated/prisma/client";
 
 export async function getOrCreateWeeklyPlan(weekStartISO: string) {
   const user = await getCurrentUser();
@@ -119,6 +120,133 @@ export async function updateDailyTarget(
     where: { id: dailyPlanId },
     data: { targetUnits },
   });
+
+  revalidatePath("/weekly-plan");
+  return { success: true };
+}
+
+export async function getUnscheduledUnits() {
+  const user = await getCurrentUser();
+
+  return prisma.unit.findMany({
+    where: {
+      userId: user.id,
+      status: "pending" as UnitStatus,
+      scheduledUnits: { none: {} },
+    },
+    orderBy: { createdAt: "asc" },
+    include: {
+      task: {
+        select: {
+          id: true,
+          title: true,
+          project: { select: { id: true, name: true, color: true } },
+        },
+      },
+    },
+  });
+}
+
+export async function scheduleUnit(
+  unitId: string,
+  dailyPlanId: string
+) {
+  const user = await getCurrentUser();
+
+  const unit = await prisma.unit.findFirst({
+    where: { id: unitId, userId: user.id },
+  });
+  if (!unit) return { error: "Unit not found" };
+
+  const dailyPlan = await prisma.dailyPlan.findFirst({
+    where: { id: dailyPlanId, userId: user.id },
+  });
+  if (!dailyPlan) return { error: "Daily plan not found" };
+
+  const existing = await prisma.scheduledUnit.findUnique({
+    where: { dailyPlanId_unitId: { dailyPlanId, unitId } },
+  });
+  if (existing) return { error: "Unit already scheduled for this day" };
+
+  const maxOrder = await prisma.scheduledUnit.aggregate({
+    where: { dailyPlanId },
+    _max: { sortOrder: true },
+  });
+  const nextOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+
+  await prisma.$transaction([
+    prisma.scheduledUnit.create({
+      data: { dailyPlanId, unitId, sortOrder: nextOrder },
+    }),
+    prisma.unit.update({
+      where: { id: unitId },
+      data: { status: "scheduled" },
+    }),
+  ]);
+
+  revalidatePath("/weekly-plan");
+  return { success: true };
+}
+
+export async function unscheduleUnit(scheduledUnitId: string) {
+  const user = await getCurrentUser();
+
+  const su = await prisma.scheduledUnit.findUnique({
+    where: { id: scheduledUnitId },
+    include: { unit: true, dailyPlan: true },
+  });
+  if (!su) return { error: "Scheduled unit not found" };
+  if (su.dailyPlan.userId !== user.id) return { error: "Not authorized" };
+
+  await prisma.$transaction([
+    prisma.scheduledUnit.delete({ where: { id: scheduledUnitId } }),
+    prisma.unit.update({
+      where: { id: su.unitId },
+      data: { status: "pending" },
+    }),
+  ]);
+
+  revalidatePath("/weekly-plan");
+  return { success: true };
+}
+
+export async function reorderUnit(
+  scheduledUnitId: string,
+  direction: "up" | "down"
+) {
+  const user = await getCurrentUser();
+
+  const su = await prisma.scheduledUnit.findUnique({
+    where: { id: scheduledUnitId },
+    include: { dailyPlan: true },
+  });
+  if (!su) return { error: "Scheduled unit not found" };
+  if (su.dailyPlan.userId !== user.id) return { error: "Not authorized" };
+
+  const allInDay = await prisma.scheduledUnit.findMany({
+    where: { dailyPlanId: su.dailyPlanId },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const idx = allInDay.findIndex((s) => s.id === scheduledUnitId);
+  if (idx === -1) return { error: "Unit not found in day" };
+
+  const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= allInDay.length) return { success: true };
+
+  const current = allInDay[idx];
+  const swap = allInDay[swapIdx];
+
+  await prisma.$transaction([
+    prisma.scheduledUnit.update({
+      where: { id: current.id },
+      data: { sortOrder: swap.sortOrder },
+    }),
+    prisma.scheduledUnit.update({
+      where: { id: swap.id },
+      data: { sortOrder: current.sortOrder },
+    }),
+  ]);
 
   revalidatePath("/weekly-plan");
   return { success: true };

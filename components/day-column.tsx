@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowUp, ArrowDown, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getDayName, formatDateShort, isSameDay } from "@/lib/date-utils";
-import { updateDailyTarget } from "@/app/actions/weekly-plan";
+import { updateDailyTarget, unscheduleUnit, reorderUnit } from "@/app/actions/weekly-plan";
 import { cn } from "@/lib/utils";
 
 interface ScheduledUnitInfo {
@@ -31,11 +33,13 @@ export interface DailyPlanData {
 
 interface DayColumnProps {
   daily: DailyPlanData;
+  onChanged: () => void;
 }
 
-export function DayColumn({ daily }: DayColumnProps) {
+export function DayColumn({ daily, onChanged }: DayColumnProps) {
   const [target, setTarget] = useState(daily.targetUnits);
   const [saving, setSaving] = useState(false);
+  const [acting, setActing] = useState<string | null>(null);
 
   const date = new Date(daily.date);
   const isToday = isSameDay(date, new Date());
@@ -47,6 +51,20 @@ export function DayColumn({ daily }: DayColumnProps) {
     setSaving(true);
     await updateDailyTarget(daily.id, target);
     setSaving(false);
+  }
+
+  async function handleUnschedule(suId: string) {
+    setActing(suId);
+    await unscheduleUnit(suId);
+    setActing(null);
+    onChanged();
+  }
+
+  async function handleReorder(suId: string, direction: "up" | "down") {
+    setActing(suId);
+    await reorderUnit(suId, direction);
+    setActing(null);
+    onChanged();
   }
 
   return (
@@ -104,20 +122,57 @@ export function DayColumn({ daily }: DayColumnProps) {
           </p>
         )}
 
-        {daily.scheduledUnits.map((su) => (
-          <div
-            key={su.id}
-            className="flex items-center gap-1.5 rounded bg-background border border-border/50 px-2 py-1"
-          >
+        {daily.scheduledUnits.map((su, idx) => {
+          const isActing = acting === su.id;
+          return (
             <div
-              className="h-1.5 w-1.5 rounded-full shrink-0"
-              style={{ backgroundColor: su.unit.task.project.color }}
-            />
-            <span className="text-[10px] truncate flex-1">
-              {su.unit.label || su.unit.task.title}
-            </span>
-          </div>
-        ))}
+              key={su.id}
+              className={cn(
+                "group/unit flex items-center gap-1 rounded bg-background border border-border/50 px-1.5 py-1",
+                isActing && "opacity-50"
+              )}
+            >
+              <div
+                className="h-1.5 w-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: su.unit.task.project.color }}
+              />
+              <span className="text-[10px] truncate flex-1">
+                {su.unit.label || su.unit.task.title}
+              </span>
+
+              <div className="flex items-center gap-0 opacity-0 group-hover/unit:opacity-100 transition-opacity shrink-0">
+                {idx > 0 && (
+                  <button
+                    onClick={() => handleReorder(su.id, "up")}
+                    disabled={isActing}
+                    className="p-0.5 rounded hover:bg-muted"
+                    title="Move up"
+                  >
+                    <ArrowUp className="h-2.5 w-2.5 text-muted-foreground" />
+                  </button>
+                )}
+                {idx < scheduledCount - 1 && (
+                  <button
+                    onClick={() => handleReorder(su.id, "down")}
+                    disabled={isActing}
+                    className="p-0.5 rounded hover:bg-muted"
+                    title="Move down"
+                  >
+                    <ArrowDown className="h-2.5 w-2.5 text-muted-foreground" />
+                  </button>
+                )}
+                <button
+                  onClick={() => handleUnschedule(su.id)}
+                  disabled={isActing}
+                  className="p-0.5 rounded hover:bg-destructive/10"
+                  title="Unschedule"
+                >
+                  <X className="h-2.5 w-2.5 text-destructive/70" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
