@@ -1,6 +1,11 @@
-import { TrendingUp } from "lucide-react";
+import { connection } from "next/server";
+import { getTrendsData } from "@/app/actions/trends";
+import { TrendsView } from "@/components/trends/trends-view";
 
-export default function TrendsPage() {
+export default async function TrendsPage() {
+  await connection();
+  const data = await getTrendsData();
+
   return (
     <div className="space-y-6">
       <div>
@@ -10,12 +15,7 @@ export default function TrendsPage() {
         </p>
       </div>
 
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-        <TrendingUp className="h-10 w-10 text-muted-foreground/40" />
-        <p className="mt-3 text-sm text-muted-foreground">
-          Coming soon — historical charts, streaks, and productivity insights.
-        </p>
-      </div>
+      <TrendsView data={data} />
     </div>
   );
 }

@@ -66,7 +66,10 @@ export async function getUserPreferences() {
   };
 }
 
-export async function completeCurrentUnit(unitId: string) {
+export async function completeCurrentUnit(
+  unitId: string,
+  actualDurationSeconds?: number
+) {
   const user = await getCurrentUser();
 
   const unit = await prisma.unit.findFirst({
@@ -76,7 +79,13 @@ export async function completeCurrentUnit(unitId: string) {
 
   await prisma.unit.update({
     where: { id: unitId },
-    data: { status: "completed", completedAt: new Date() },
+    data: {
+      status: "completed",
+      completedAt: new Date(),
+      ...(actualDurationSeconds != null && actualDurationSeconds > 0 && {
+        actualDurationSeconds,
+      }),
+    },
   });
 
   const completedCount = await prisma.unit.count({

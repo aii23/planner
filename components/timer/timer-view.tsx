@@ -10,6 +10,7 @@ import { TimerDisplay } from "@/components/timer/timer-display";
 import { TimerControls } from "@/components/timer/timer-controls";
 import { UnitQueue, type QueueItem } from "@/components/timer/unit-queue";
 import { CheckpointPopup } from "@/components/timer/checkpoint-popup";
+import { WorkEndedPopup } from "@/components/timer/work-ended-popup";
 import {
   getTodayQueue,
   completeCurrentUnit,
@@ -45,6 +46,8 @@ export function TimerView({
   const autoTransitioned = useRef(false);
   const sessionStartRef = useRef<string | null>(null);
   const prevStateRef = useRef<string>("IDLE");
+  const unitStartTimeRef = useRef<number | null>(null);
+  const [workEndedVisible, setWorkEndedVisible] = useState(false);
 
   const { requestPermission, notify, playChime } = useNotifications();
 
@@ -166,16 +169,26 @@ export function TimerView({
     }
   }, [timer.state, chime, notify, currentUnitId]);
 
-  // Auto transition: WORK_ENDED → REST_RUNNING
+  // Show work-ended popup instead of silent auto-transition
   useEffect(() => {
     if (timer.state === "WORK_ENDED" && !autoTransitioned.current) {
       autoTransitioned.current = true;
-      timer.endWork();
+      setWorkEndedVisible(true);
     }
     if (timer.state !== "WORK_ENDED") {
       autoTransitioned.current = false;
     }
-  }, [timer.state, timer.endWork]);
+  }, [timer.state]);
+
+  function handleWorkEndedStartRest() {
+    setWorkEndedVisible(false);
+    timer.endWork();
+  }
+
+  function handleWorkEndedSkipRest() {
+    setWorkEndedVisible(false);
+    timer.skipRest();
+  }
 
   function handleStart() {
     const next = getNextUnit();
@@ -185,11 +198,18 @@ export function TimerView({
     } else {
       timer.start();
     }
+    unitStartTimeRef.current = Date.now();
+  }
+
+  function getUnitElapsedSeconds(): number {
+    if (!unitStartTimeRef.current) return 0;
+    return Math.floor((Date.now() - unitStartTimeRef.current) / 1000);
   }
 
   async function handleCompleteUnit() {
     if (!currentUnitId) return;
-    await completeCurrentUnit(currentUnitId);
+    const elapsed = getUnitElapsedSeconds();
+    await completeCurrentUnit(currentUnitId, elapsed);
 
     setQueue((prev) =>
       prev.map((q) =>
@@ -203,6 +223,7 @@ export function TimerView({
     const nextId = next?.unit.id ?? null;
     setCurrentUnitId(nextId);
     timer.setPersistedUnitId(nextId);
+    unitStartTimeRef.current = nextId ? Date.now() : null;
 
     await refreshQueue();
   }
@@ -431,6 +452,13 @@ export function TimerView({
         onComplete={handleCheckpointComplete}
         onContinue={handleCheckpointContinue}
         onSplit={handleCheckpointSplit}
+      />
+
+      <WorkEndedPopup
+        visible={workEndedVisible}
+        unitLabel={checkpointLabel}
+        onStartRest={handleWorkEndedStartRest}
+        onSkipRest={handleWorkEndedSkipRest}
       />
     </div>
   );

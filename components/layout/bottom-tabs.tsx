@@ -9,8 +9,8 @@ const tabs = [
   { href: "/backlog", label: "Backlog", icon: Inbox, disabled: false },
   { href: "/weekly-plan", label: "Plan", icon: Calendar, disabled: false },
   { href: "/today", label: "Today", icon: Timer, disabled: false },
-  { href: "/summary", label: "Summary", icon: BarChart3, disabled: true },
-  { href: "/trends", label: "Trends", icon: TrendingUp, disabled: true },
+  { href: "/summary", label: "Summary", icon: BarChart3, disabled: false },
+  { href: "/trends", label: "Trends", icon: TrendingUp, disabled: false },
 ];
 
 export function BottomTabs() {

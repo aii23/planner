@@ -1,6 +1,16 @@
-import { BarChart3 } from "lucide-react";
+import { connection } from "next/server";
+import { getWeeklySummary } from "@/app/actions/summary";
+import { SummaryView } from "@/components/summary/summary-view";
+import { getMonday, addWeeks, toDateOnlyISO } from "@/lib/date-utils";
 
-export default function SummaryPage() {
+export default async function SummaryPage() {
+  await connection();
+
+  const now = new Date();
+  const lastMonday = addWeeks(getMonday(now), -1);
+  const mondayISO = toDateOnlyISO(lastMonday);
+  const summary = await getWeeklySummary(mondayISO);
+
   return (
     <div className="space-y-6">
       <div>
@@ -12,12 +22,7 @@ export default function SummaryPage() {
         </p>
       </div>
 
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-        <BarChart3 className="h-10 w-10 text-muted-foreground/40" />
-        <p className="mt-3 text-sm text-muted-foreground">
-          Coming soon — weekly review with target vs actual analysis.
-        </p>
-      </div>
+      <SummaryView initialSummary={summary} initialMonday={mondayISO} />
     </div>
   );
 }

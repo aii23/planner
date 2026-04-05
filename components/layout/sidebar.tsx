@@ -23,8 +23,8 @@ const navItems = [
     disabled: false,
   },
   { href: "/today", label: "Today", icon: Timer, disabled: false },
-  { href: "/summary", label: "Summary", icon: BarChart3, disabled: true },
-  { href: "/trends", label: "Trends", icon: TrendingUp, disabled: true },
+  { href: "/summary", label: "Summary", icon: BarChart3, disabled: false },
+  { href: "/trends", label: "Trends", icon: TrendingUp, disabled: false },
 ];
 
 export function Sidebar() {
