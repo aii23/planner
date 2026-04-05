@@ -220,14 +220,16 @@ export function WeeklyPlanView({
           />
         </aside>
 
-        <div className="flex-1 grid grid-cols-7 gap-2 min-w-0">
-          {plan.dailyPlans.map((daily) => (
-            <DayColumn
-              key={daily.id}
-              daily={daily}
-              onChanged={handleSchedulingChanged}
-            />
-          ))}
+        <div className="flex-1 min-w-0 overflow-x-auto snap-x snap-mandatory scroll-smooth">
+          <div className="grid grid-cols-2 gap-3 min-w-0" style={{ gridAutoRows: "min-content" }}>
+            {plan.dailyPlans.map((daily) => (
+              <DayColumn
+                key={daily.id}
+                daily={daily}
+                onChanged={handleSchedulingChanged}
+              />
+            ))}
+          </div>
         </div>
       </div>
 

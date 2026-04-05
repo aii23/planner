@@ -70,55 +70,58 @@ export function DayColumn({ daily, onChanged }: DayColumnProps) {
   return (
     <div
       className={cn(
-        "flex flex-col rounded-lg border border-border bg-card p-3 min-w-0",
+        "flex flex-col rounded-lg border border-border bg-card p-4 min-w-0 snap-start",
         isToday && "ring-2 ring-primary/30 border-primary/40"
       )}
     >
-      <div className="text-center mb-2">
-        <p
-          className={cn(
-            "text-xs font-medium",
-            isToday ? "text-primary" : "text-muted-foreground"
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <p
+            className={cn(
+              "text-sm font-semibold",
+              isToday ? "text-primary" : "text-foreground"
+            )}
+          >
+            {getDayName(date)}
+          </p>
+          <p className="text-xs text-muted-foreground">{formatDateShort(date)}</p>
+          {isToday && (
+            <Badge variant="secondary" className="text-[10px]">Today</Badge>
           )}
-        >
-          {getDayName(date)}
-        </p>
-        <p className="text-sm font-semibold">{formatDateShort(date)}</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <label
+              htmlFor={`target-${daily.id}`}
+              className="text-[11px] text-muted-foreground"
+            >
+              Target
+            </label>
+            <Input
+              id={`target-${daily.id}`}
+              type="number"
+              min={0}
+              max={99}
+              value={target}
+              onChange={(e) => setTarget(parseInt((e.target as HTMLInputElement).value, 10) || 0)}
+              onBlur={handleTargetBlur}
+              className={cn("h-6 w-12 text-xs text-center tabular-nums", saving && "opacity-50")}
+            />
+          </div>
+          <Badge
+            variant={atCapacity ? "default" : "outline"}
+            className="text-[10px] tabular-nums"
+          >
+            {scheduledCount}/{target}
+          </Badge>
+        </div>
       </div>
 
-      <div className="flex items-center gap-1.5 justify-center mb-2">
-        <label
-          htmlFor={`target-${daily.id}`}
-          className="text-[10px] text-muted-foreground"
-        >
-          Target
-        </label>
-        <Input
-          id={`target-${daily.id}`}
-          type="number"
-          min={0}
-          max={99}
-          value={target}
-          onChange={(e) => setTarget(parseInt((e.target as HTMLInputElement).value, 10) || 0)}
-          onBlur={handleTargetBlur}
-          className={cn("h-6 w-12 text-xs text-center tabular-nums", saving && "opacity-50")}
-        />
-      </div>
-
-      <div className="flex items-center justify-center gap-1.5 mb-3">
-        <Badge
-          variant={atCapacity ? "default" : "outline"}
-          className="text-[10px] tabular-nums"
-        >
-          {scheduledCount}/{target}
-        </Badge>
-        <span className="text-[10px] text-muted-foreground">scheduled</span>
-      </div>
-
-      <div className="flex-1 min-h-[120px] rounded border border-dashed border-border/60 bg-muted/20 p-1.5 space-y-1">
+      <div className="flex-1 min-h-[80px] rounded border border-dashed border-border/60 bg-muted/20 p-2 space-y-1.5">
         {scheduledCount === 0 && (
-          <p className="text-[10px] text-muted-foreground/60 text-center pt-8">
-            No units
+          <p className="text-xs text-muted-foreground/60 text-center pt-6">
+            No units scheduled
           </p>
         )}
 
@@ -128,17 +131,24 @@ export function DayColumn({ daily, onChanged }: DayColumnProps) {
             <div
               key={su.id}
               className={cn(
-                "group/unit flex items-center gap-1 rounded bg-background border border-border/50 px-1.5 py-1",
+                "group/unit flex items-center gap-2 rounded-md bg-background border border-border/50 px-2.5 py-1.5",
                 isActing && "opacity-50"
               )}
             >
               <div
-                className="h-1.5 w-1.5 rounded-full shrink-0"
+                className="h-2 w-2 rounded-full shrink-0"
                 style={{ backgroundColor: su.unit.task?.project.color ?? "#94a3b8" }}
               />
-              <span className="text-[10px] truncate flex-1">
-                {su.unit.label || su.unit.task?.title || "Untitled"}
-              </span>
+              <div className="flex-1 min-w-0">
+                <span className="text-xs block truncate">
+                  {su.unit.label || su.unit.task?.title || "Untitled"}
+                </span>
+                {su.unit.task && (
+                  <span className="text-[10px] text-muted-foreground block truncate">
+                    {su.unit.task.project.name}
+                  </span>
+                )}
+              </div>
 
               <div className="flex items-center gap-0 opacity-0 group-hover/unit:opacity-100 transition-opacity shrink-0">
                 {idx > 0 && (
@@ -148,7 +158,7 @@ export function DayColumn({ daily, onChanged }: DayColumnProps) {
                     className="p-0.5 rounded hover:bg-muted"
                     title="Move up"
                   >
-                    <ArrowUp className="h-2.5 w-2.5 text-muted-foreground" />
+                    <ArrowUp className="h-3 w-3 text-muted-foreground" />
                   </button>
                 )}
                 {idx < scheduledCount - 1 && (
@@ -158,7 +168,7 @@ export function DayColumn({ daily, onChanged }: DayColumnProps) {
                     className="p-0.5 rounded hover:bg-muted"
                     title="Move down"
                   >
-                    <ArrowDown className="h-2.5 w-2.5 text-muted-foreground" />
+                    <ArrowDown className="h-3 w-3 text-muted-foreground" />
                   </button>
                 )}
                 <button
@@ -167,7 +177,7 @@ export function DayColumn({ daily, onChanged }: DayColumnProps) {
                   className="p-0.5 rounded hover:bg-destructive/10"
                   title="Unschedule"
                 >
-                  <X className="h-2.5 w-2.5 text-destructive/70" />
+                  <X className="h-3 w-3 text-destructive/70" />
                 </button>
               </div>
             </div>
