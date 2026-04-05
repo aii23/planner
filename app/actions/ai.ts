@@ -66,7 +66,7 @@ export async function reviewWeeklyPlan(weekStartISO: string) {
   const planDescription = plan.dailyPlans.map((dp, i) => {
     const units = dp.scheduledUnits.map(
       (su) =>
-        `  - [${su.unit.id.slice(0, 8)}] "${su.unit.label || su.unit.task.title}" (Project: ${su.unit.task.project.name}${su.unit.task.description ? `, Task desc: ${su.unit.task.description}` : ""})`
+        `  - [${su.unit.id.slice(0, 8)}] "${su.unit.label || su.unit.task?.title || "Untitled"}" (${su.unit.task ? `Project: ${su.unit.task.project.name}${su.unit.task.description ? `, Task desc: ${su.unit.task.description}` : ""}` : "Standalone unit"})`
     );
     return `${dayNames[i]} (target: ${dp.targetUnits}, scheduled: ${dp.scheduledUnits.length}):\n${units.length > 0 ? units.join("\n") : "  (no units scheduled)"}`;
   }).join("\n\n");
@@ -167,7 +167,7 @@ export async function getDailyCheckin() {
 
   const unitList = activeUnits.map(
     (su, i) =>
-      `${i + 1}. [${su.unit.id}] "${su.unit.label || su.unit.task.title}" — Project: ${su.unit.task.project.name}${su.unit.task.description ? ` (${su.unit.task.description})` : ""}`
+      `${i + 1}. [${su.unit.id}] "${su.unit.label || su.unit.task?.title || "Untitled"}" — ${su.unit.task ? `Project: ${su.unit.task.project.name}${su.unit.task.description ? ` (${su.unit.task.description})` : ""}` : "Standalone unit"}`
   ).join("\n");
 
   const featurePrompt = `You are giving the user a daily briefing for today's work queue. Suggest an optimal order that batches related work together for better flow.
@@ -280,6 +280,7 @@ export async function generateWeeklyReview(weekStartISO: string) {
 
   const projectMap = new Map<string, { name: string; completed: number; scheduled: number }>();
   for (const su of allUnits) {
+    if (!su.unit.task) continue;
     const p = su.unit.task.project;
     const entry = projectMap.get(p.name) ?? { name: p.name, completed: 0, scheduled: 0 };
     entry.scheduled++;

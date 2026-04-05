@@ -91,7 +91,7 @@ export async function updateUnit(
     },
   });
 
-  if (isCompleting || isUncompleting) {
+  if ((isCompleting || isUncompleting) && unit.taskId) {
     const completedCount = await prisma.unit.count({
       where: { taskId: unit.taskId, status: "completed" },
     });
@@ -115,13 +115,15 @@ export async function deleteUnit(id: string) {
 
   await prisma.unit.delete({ where: { id } });
 
-  const completedCount = await prisma.unit.count({
-    where: { taskId: unit.taskId, status: "completed" },
-  });
-  await prisma.task.update({
-    where: { id: unit.taskId },
-    data: { completedUnits: completedCount },
-  });
+  if (unit.taskId) {
+    const completedCount = await prisma.unit.count({
+      where: { taskId: unit.taskId, status: "completed" },
+    });
+    await prisma.task.update({
+      where: { id: unit.taskId },
+      data: { completedUnits: completedCount },
+    });
+  }
 
   revalidatePath("/backlog");
   return { success: true };

@@ -309,3 +309,22 @@ export async function getCarryForwardUnits(weekStartISO: string) {
     return true;
   });
 }
+
+export async function createQuickUnit(label: string | null) {
+  const user = await getCurrentUser();
+
+  if (!label?.trim()) {
+    return { error: "Label is required for standalone units" };
+  }
+
+  await prisma.unit.create({
+    data: {
+      userId: user.id,
+      label: label.trim(),
+      taskId: null,
+    },
+  });
+
+  revalidatePath("/weekly-plan");
+  return { success: true };
+}

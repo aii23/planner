@@ -17,7 +17,7 @@ interface QueueItem {
       id: string;
       title: string;
       project: { id: string; name: string; color: string };
-    };
+    } | null;
   };
 }
 
@@ -141,10 +141,10 @@ export function DailyCheckin({ queue, onReorderApplied }: DailyCheckinProps) {
                           </span>
                           <span
                             className="h-2 w-2 rounded-full shrink-0"
-                            style={{ backgroundColor: q.unit.task.project.color }}
+                            style={{ backgroundColor: q.unit.task?.project.color ?? "#94a3b8" }}
                           />
                           <span className="text-xs truncate">
-                            {q.unit.label || q.unit.task.title}
+                            {q.unit.label || q.unit.task?.title || "Untitled"}
                           </span>
                         </div>
                       ))}
@@ -176,7 +176,7 @@ export function DailyCheckin({ queue, onReorderApplied }: DailyCheckinProps) {
                               className="h-2 w-2 rounded-full shrink-0"
                               style={{
                                 backgroundColor:
-                                  original?.unit.task.project.color ?? "#888",
+                                  original?.unit.task?.project.color ?? "#888",
                               }}
                             />
                             <span className="text-xs truncate flex-1">{u.label}</span>

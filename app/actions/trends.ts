@@ -46,6 +46,7 @@ export async function getTrendsData() {
       { id: string; name: string; color: string; count: number }
     >();
     for (const su of completed) {
+      if (!su.unit.task) continue;
       const p = su.unit.task.project;
       const entry = projectMap.get(p.id) ?? { ...p, count: 0 };
       entry.count++;

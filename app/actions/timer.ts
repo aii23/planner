@@ -88,13 +88,15 @@ export async function completeCurrentUnit(
     },
   });
 
-  const completedCount = await prisma.unit.count({
-    where: { taskId: unit.taskId, status: "completed" },
-  });
-  await prisma.task.update({
-    where: { id: unit.taskId },
-    data: { completedUnits: completedCount },
-  });
+  if (unit.taskId) {
+    const completedCount = await prisma.unit.count({
+      where: { taskId: unit.taskId, status: "completed" },
+    });
+    await prisma.task.update({
+      where: { id: unit.taskId },
+      data: { completedUnits: completedCount },
+    });
+  }
 
   revalidatePath("/today");
   return { success: true };
@@ -195,13 +197,15 @@ export async function splitUnit(unitId: string, followUpLabel: string | null) {
     data: { status: "completed", completedAt: new Date() },
   });
 
-  const completedCount = await prisma.unit.count({
-    where: { taskId: unit.taskId, status: "completed" },
-  });
-  await prisma.task.update({
-    where: { id: unit.taskId },
-    data: { completedUnits: completedCount },
-  });
+  if (unit.taskId) {
+    const completedCount = await prisma.unit.count({
+      where: { taskId: unit.taskId, status: "completed" },
+    });
+    await prisma.task.update({
+      where: { id: unit.taskId },
+      data: { completedUnits: completedCount },
+    });
+  }
 
   const newUnit = await prisma.unit.create({
     data: {

@@ -336,11 +336,15 @@ export function TimerView({
   });
 
   const availableTasks = Array.from(
-    new Map(queue.map((q) => [q.unit.task.id, q.unit.task])).values()
+    new Map(
+      queue
+        .filter((q) => q.unit.task != null)
+        .map((q) => [q.unit.task!.id, q.unit.task!])
+    ).values()
   );
 
   const checkpointLabel =
-    currentUnit?.label || currentUnit?.task.title || "this unit";
+    currentUnit?.label || currentUnit?.task?.title || "this unit";
 
   return (
     <div className="flex gap-8">

@@ -26,7 +26,7 @@ export interface QueueItem {
       id: string;
       title: string;
       project: { id: string; name: string; color: string };
-    };
+    } | null;
   };
 }
 
@@ -102,7 +102,7 @@ export function UnitQueue({
 
             <div
               className="h-2 w-2 rounded-full shrink-0"
-              style={{ backgroundColor: item.unit.task.project.color }}
+              style={{ backgroundColor: item.unit.task?.project.color ?? "#94a3b8" }}
             />
 
             <div className="flex-1 min-w-0">
@@ -113,10 +113,12 @@ export function UnitQueue({
                   isCurrent && "font-medium"
                 )}
               >
-                {item.unit.label || item.unit.task.title}
+                {item.unit.label || item.unit.task?.title || "Untitled"}
               </span>
               <span className="text-[10px] text-muted-foreground truncate block">
-                {item.unit.task.project.name} · {item.unit.task.title}
+                {item.unit.task
+                  ? `${item.unit.task.project.name} · ${item.unit.task.title}`
+                  : "Standalone unit"}
               </span>
             </div>
 

@@ -12,7 +12,7 @@ interface TimerDisplayProps {
     task: {
       title: string;
       project: { name: string; color: string };
-    };
+    } | null;
   } | null;
 }
 
@@ -103,17 +103,19 @@ export function TimerDisplay({
 
       {currentUnit && (
         <div className="flex flex-col items-center gap-1 mt-2">
-          <div className="flex items-center gap-2">
-            <div
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: currentUnit.task.project.color }}
-            />
-            <span className="text-xs text-muted-foreground">
-              {currentUnit.task.project.name}
-            </span>
-          </div>
+          {currentUnit.task && (
+            <div className="flex items-center gap-2">
+              <div
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: currentUnit.task.project.color }}
+              />
+              <span className="text-xs text-muted-foreground">
+                {currentUnit.task.project.name}
+              </span>
+            </div>
+          )}
           <span className="text-sm font-medium text-center max-w-xs truncate">
-            {currentUnit.label || currentUnit.task.title}
+            {currentUnit.label || currentUnit.task?.title || "Untitled"}
           </span>
         </div>
       )}

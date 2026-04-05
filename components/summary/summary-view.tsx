@@ -217,9 +217,9 @@ export function SummaryView({ initialSummary, initialMonday }: SummaryViewProps)
           <CardContent className="space-y-2">
             {summary.unfinishedUnits.map((u) => (
               <div key={u.unitId} className="flex items-center gap-2 group">
-                <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: u.task.project.color }} />
-                <span className="text-sm flex-1 truncate">{u.label || u.task.title}</span>
-                <span className="text-[10px] text-muted-foreground">{u.task.project.name}</span>
+                <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: u.task?.project.color ?? "#94a3b8" }} />
+                <span className="text-sm flex-1 truncate">{u.label || u.task?.title || "Untitled"}</span>
+                <span className="text-[10px] text-muted-foreground">{u.task?.project.name ?? "Standalone"}</span>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
                     variant="ghost"

@@ -27,7 +27,7 @@ interface BacklogUnitItem {
     id: string;
     title: string;
     project: { id: string; name: string; color: string };
-  };
+  } | null;
 }
 
 interface WeeklyPlanData {
@@ -45,7 +45,7 @@ interface CarryForwardItem {
     id: string;
     title: string;
     project: { id: string; name: string; color: string };
-  };
+  } | null;
 }
 
 interface WeeklyPlanViewProps {
@@ -198,9 +198,9 @@ export function WeeklyPlanView({
                 >
                   <span
                     className="h-1.5 w-1.5 rounded-full"
-                    style={{ backgroundColor: u.task.project.color }}
+                    style={{ backgroundColor: u.task?.project.color ?? "#94a3b8" }}
                   />
-                  {u.label || u.task.title}
+                  {u.label || u.task?.title || "Untitled"}
                 </span>
               ))}
             </div>

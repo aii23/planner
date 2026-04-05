@@ -20,7 +20,7 @@ interface ScheduledUnitInfo {
       id: string;
       title: string;
       project: { id: string; name: string; color: string };
-    };
+    } | null;
   };
 }
 
@@ -134,10 +134,10 @@ export function DayColumn({ daily, onChanged }: DayColumnProps) {
             >
               <div
                 className="h-1.5 w-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: su.unit.task.project.color }}
+                style={{ backgroundColor: su.unit.task?.project.color ?? "#94a3b8" }}
               />
               <span className="text-[10px] truncate flex-1">
-                {su.unit.label || su.unit.task.title}
+                {su.unit.label || su.unit.task?.title || "Untitled"}
               </span>
 
               <div className="flex items-center gap-0 opacity-0 group-hover/unit:opacity-100 transition-opacity shrink-0">

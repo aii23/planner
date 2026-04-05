@@ -69,6 +69,7 @@ export async function getWeeklySummary(weekStartISO: string) {
     { id: string; name: string; color: string; completed: number; scheduled: number }
   >();
   for (const su of allScheduledUnits) {
+    if (!su.unit.task) continue;
     const p = su.unit.task.project;
     const entry = projectMap.get(p.id) ?? {
       id: p.id,
@@ -84,16 +85,16 @@ export async function getWeeklySummary(weekStartISO: string) {
 
   const completedTaskIds = new Set<string>();
   for (const su of completedUnits) {
-    if (su.unit.task.status === "done") {
+    if (su.unit.task && su.unit.task.status === "done") {
       completedTaskIds.add(su.unit.task.id);
     }
   }
   const completedTasks = Array.from(completedTaskIds).map((taskId) => {
-    const su = completedUnits.find((s) => s.unit.task.id === taskId)!;
+    const su = completedUnits.find((s) => s.unit.task?.id === taskId)!;
     return {
-      id: su.unit.task.id,
-      title: su.unit.task.title,
-      project: su.unit.task.project,
+      id: su.unit.task!.id,
+      title: su.unit.task!.title,
+      project: su.unit.task!.project,
     };
   });
 
