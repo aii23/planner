@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifyToken } from "@/lib/auth";
 
 const publicRoutes = ["/login"];
 
@@ -9,12 +10,13 @@ export function proxy(request: NextRequest) {
     pathname.startsWith(route)
   );
   const authCookie = request.cookies.get("AUTH_PASSWORD");
+  const isAuthenticated = authCookie ? verifyToken(authCookie.value) : false;
 
-  if (!isPublicRoute && !authCookie) {
+  if (!isPublicRoute && !isAuthenticated) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (isPublicRoute && authCookie) {
+  if (isPublicRoute && isAuthenticated) {
     return NextResponse.redirect(new URL("/backlog", request.url));
   }
 

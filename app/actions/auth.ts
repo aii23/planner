@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { signToken } from "@/lib/auth";
 
 export async function login(
   _prevState: { error?: string } | undefined,
@@ -17,13 +18,16 @@ export async function login(
     return { error: "Invalid password" };
   }
 
+  const issued = Date.now().toString();
+  const token = signToken(issued);
+
   const cookieStore = await cookies();
-  cookieStore.set("AUTH_PASSWORD", "authenticated", {
+  cookieStore.set("AUTH_PASSWORD", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    maxAge: 60 * 60 * 24 * 30,
   });
 
   redirect("/backlog");
