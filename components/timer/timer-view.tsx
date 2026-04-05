@@ -19,6 +19,7 @@ import {
   saveTimerSession,
   incrementUnitsConsumed,
   splitUnit,
+  reorderTodayQueue,
 } from "@/app/actions/timer";
 import { DailyCheckin } from "@/components/ai/daily-checkin";
 
@@ -271,6 +272,17 @@ export function TimerView({
     await refreshQueue();
   }
 
+  const handleReorder = useCallback(
+    async (orderedScheduledUnitIds: string[]) => {
+      const reordered = orderedScheduledUnitIds
+        .map((suId) => queue.find((q) => q.scheduledUnitId === suId))
+        .filter((q): q is QueueItem => q != null);
+      setQueue(reordered);
+      await reorderTodayQueue(orderedScheduledUnitIds);
+    },
+    [queue]
+  );
+
   function handleCheckpointComplete() {
     setCheckpointVisible(false);
     handleCompleteUnit();
@@ -390,6 +402,7 @@ export function TimerView({
           currentUnitId={currentUnitId}
           onComplete={handleCompleteFromQueue}
           onSkip={handleSkipFromQueue}
+          onReorder={handleReorder}
         />
 
         <div className="mt-4 pt-3 border-t border-border">

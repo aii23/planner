@@ -67,6 +67,32 @@ export async function getUserPreferences() {
   };
 }
 
+export async function reorderTodayQueue(orderedScheduledUnitIds: string[]) {
+  const user = await getCurrentUser();
+
+  if (orderedScheduledUnitIds.length === 0) return { success: true };
+
+  const first = await prisma.scheduledUnit.findUnique({
+    where: { id: orderedScheduledUnitIds[0] },
+    include: { dailyPlan: true },
+  });
+  if (!first || first.dailyPlan.userId !== user.id) {
+    return { error: "Not authorized" };
+  }
+
+  await prisma.$transaction(
+    orderedScheduledUnitIds.map((id, index) =>
+      prisma.scheduledUnit.update({
+        where: { id },
+        data: { sortOrder: index },
+      })
+    )
+  );
+
+  revalidatePath("/today");
+  return { success: true };
+}
+
 export async function completeCurrentUnit(
   unitId: string,
   actualDurationSeconds?: number

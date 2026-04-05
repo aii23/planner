@@ -252,6 +252,31 @@ export async function reorderUnit(
   return { success: true };
 }
 
+export async function batchReorderUnits(
+  dailyPlanId: string,
+  orderedScheduledUnitIds: string[]
+) {
+  const user = await getCurrentUser();
+
+  const dailyPlan = await prisma.dailyPlan.findFirst({
+    where: { id: dailyPlanId, userId: user.id },
+  });
+  if (!dailyPlan) return { error: "Daily plan not found" };
+
+  await prisma.$transaction(
+    orderedScheduledUnitIds.map((id, index) =>
+      prisma.scheduledUnit.update({
+        where: { id },
+        data: { sortOrder: index },
+      })
+    )
+  );
+
+  revalidatePath("/weekly-plan");
+  revalidatePath("/today");
+  return { success: true };
+}
+
 export async function getCarryForwardUnits(weekStartISO: string) {
   const user = await getCurrentUser();
   const currentMonday = new Date(weekStartISO + "T00:00:00.000Z");
