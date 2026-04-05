@@ -1,32 +1,36 @@
 "use client";
 
-import { Play, Pause, SkipForward, RotateCcw, ArrowRight } from "lucide-react";
+import { Play, Pause, SkipForward, RotateCcw, ArrowRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TimerState } from "@/hooks/use-timer";
 
 interface TimerControlsProps {
   state: TimerState;
   hasQueue: boolean;
+  hasCurrentUnit: boolean;
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
   onSkipRest: () => void;
   onReset: () => void;
   onEndWork: () => void;
+  onCompleteUnit: () => void;
 }
 
 export function TimerControls({
   state,
   hasQueue,
+  hasCurrentUnit,
   onStart,
   onPause,
   onResume,
   onSkipRest,
   onReset,
   onEndWork,
+  onCompleteUnit,
 }: TimerControlsProps) {
   return (
-    <div className="flex items-center justify-center gap-3">
+    <div className="flex items-center justify-center gap-3 flex-wrap">
       {state === "IDLE" && (
         <Button size="lg" onClick={onStart} disabled={!hasQueue} className="gap-2 px-8">
           <Play className="h-5 w-5" />
@@ -36,6 +40,12 @@ export function TimerControls({
 
       {state === "WORK_RUNNING" && (
         <>
+          {hasCurrentUnit && (
+            <Button size="lg" onClick={onCompleteUnit} className="gap-2 px-6 bg-emerald-600 hover:bg-emerald-700">
+              <CheckCircle2 className="h-5 w-5" />
+              Complete Unit
+            </Button>
+          )}
           <Button variant="outline" size="lg" onClick={onPause} className="gap-2">
             <Pause className="h-5 w-5" />
             Pause
@@ -53,6 +63,12 @@ export function TimerControls({
             <Play className="h-5 w-5" />
             Resume
           </Button>
+          {hasCurrentUnit && (
+            <Button variant="outline" size="lg" onClick={onCompleteUnit} className="gap-2">
+              <CheckCircle2 className="h-5 w-5" />
+              Complete
+            </Button>
+          )}
           <Button variant="ghost" size="lg" onClick={onReset} className="gap-2">
             <RotateCcw className="h-4 w-4" />
             Reset

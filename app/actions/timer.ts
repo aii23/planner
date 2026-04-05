@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
 import { getMonday, toDateOnlyISO } from "@/lib/date-utils";
@@ -62,4 +63,94 @@ export async function getUserPreferences() {
     workDurationMin: (prefs?.work_duration_min as number) ?? 50,
     restDurationMin: (prefs?.rest_duration_min as number) ?? 10,
   };
+}
+
+export async function completeCurrentUnit(unitId: string) {
+  const user = await getCurrentUser();
+
+  const unit = await prisma.unit.findFirst({
+    where: { id: unitId, userId: user.id },
+  });
+  if (!unit) return { error: "Unit not found" };
+
+  await prisma.unit.update({
+    where: { id: unitId },
+    data: { status: "completed", completedAt: new Date() },
+  });
+
+  const completedCount = await prisma.unit.count({
+    where: { taskId: unit.taskId, status: "completed" },
+  });
+  await prisma.task.update({
+    where: { id: unit.taskId },
+    data: { completedUnits: completedCount },
+  });
+
+  revalidatePath("/today");
+  return { success: true };
+}
+
+export async function skipCurrentUnit(unitId: string) {
+  const user = await getCurrentUser();
+
+  const unit = await prisma.unit.findFirst({
+    where: { id: unitId, userId: user.id },
+  });
+  if (!unit) return { error: "Unit not found" };
+
+  await prisma.unit.update({
+    where: { id: unitId },
+    data: { status: "skipped" },
+  });
+
+  revalidatePath("/today");
+  return { success: true };
+}
+
+export async function quickAddUnit(taskId: string, label: string | null) {
+  const user = await getCurrentUser();
+
+  const task = await prisma.task.findFirst({
+    where: { id: taskId, userId: user.id },
+  });
+  if (!task) return { error: "Task not found" };
+
+  const today = new Date();
+  const monday = getMonday(today);
+  const todayISO = toDateOnlyISO(today);
+  const mondayISO = toDateOnlyISO(monday);
+
+  const dailyPlan = await prisma.dailyPlan.findFirst({
+    where: {
+      userId: user.id,
+      date: new Date(todayISO + "T00:00:00.000Z"),
+      weeklyPlan: { weekStartDate: new Date(mondayISO + "T00:00:00.000Z") },
+    },
+  });
+
+  const unit = await prisma.unit.create({
+    data: {
+      taskId,
+      userId: user.id,
+      label: label?.trim() || null,
+      status: dailyPlan ? "scheduled" : "pending",
+    },
+  });
+
+  if (dailyPlan) {
+    const maxOrder = await prisma.scheduledUnit.aggregate({
+      where: { dailyPlanId: dailyPlan.id },
+      _max: { sortOrder: true },
+    });
+    await prisma.scheduledUnit.create({
+      data: {
+        dailyPlanId: dailyPlan.id,
+        unitId: unit.id,
+        sortOrder: (maxOrder._max.sortOrder ?? -1) + 1,
+      },
+    });
+  }
+
+  revalidatePath("/today");
+  return { success: true, unitId: unit.id };
 }
