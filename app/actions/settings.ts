@@ -11,6 +11,7 @@ export interface UserPreferences {
   week_start_day: string;
   daily_checkin: boolean;
   notification_sound: boolean;
+  timezone: string;
 }
 
 const DEFAULTS: UserPreferences = {
@@ -20,6 +21,7 @@ const DEFAULTS: UserPreferences = {
   week_start_day: "monday",
   daily_checkin: true,
   notification_sound: true,
+  timezone: "UTC",
 };
 
 export async function getPreferences(): Promise<UserPreferences> {

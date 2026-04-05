@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Plus, X } from "lucide-react";
-import { useBacklogRefresh } from "@/components/backlog/backlog-context";
+import { useBacklog } from "@/components/backlog/backlog-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,26 +15,42 @@ interface AddTaskFormProps {
 export function AddTaskForm({ projectId }: AddTaskFormProps) {
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const refresh = useBacklogRefresh();
+  const { addTask, refresh } = useBacklog();
 
   async function handleSubmit(formData: FormData) {
-    setPending(true);
-    setError("");
-    formData.set("projectId", projectId);
-
-    const result = await createTask(formData);
-    setPending(false);
-
-    if (result?.error) {
-      setError(result.error);
+    const title = (formData.get("title") as string)?.trim();
+    if (!title) {
+      setError("Task title is required");
       return;
     }
 
+    formData.set("projectId", projectId);
+    const description = (formData.get("description") as string)?.trim() || null;
+    const estimatedUnits = parseInt(formData.get("estimatedUnits") as string, 10) || 1;
+
+    addTask(projectId, {
+      id: `optimistic-${Date.now()}`,
+      projectId,
+      title,
+      description,
+      status: "backlog",
+      estimatedUnits,
+      completedUnits: 0,
+      createdAt: new Date(),
+      completedAt: null,
+      _count: { units: 0 },
+      units: [],
+    });
+
     formRef.current?.reset();
     setExpanded(false);
-    refresh();
+    setError("");
+
+    createTask(formData).then((result) => {
+      if (result?.error) setError(result.error);
+      refresh();
+    });
   }
 
   if (!expanded) {
@@ -107,8 +123,8 @@ export function AddTaskForm({ projectId }: AddTaskFormProps) {
 
         <div className="flex-1" />
 
-        <Button type="submit" size="sm" disabled={pending} className="h-7 text-xs">
-          {pending ? "Adding…" : "Add Task"}
+        <Button type="submit" size="sm" className="h-7 text-xs">
+          Add Task
         </Button>
       </div>
 

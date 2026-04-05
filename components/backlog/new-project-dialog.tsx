@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Plus } from "lucide-react";
-import { useBacklogRefresh } from "@/components/backlog/backlog-context";
+import { useBacklog } from "@/components/backlog/backlog-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -33,27 +33,37 @@ export function NewProjectDialog() {
   const [open, setOpen] = useState(false);
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const refresh = useBacklogRefresh();
+  const { addProject, refresh } = useBacklog();
 
   async function handleSubmit(formData: FormData) {
-    setPending(true);
-    setError("");
-    formData.set("color", color);
-
-    const result = await createProject(formData);
-    setPending(false);
-
-    if (result?.error) {
-      setError(result.error);
+    const name = (formData.get("name") as string)?.trim();
+    if (!name) {
+      setError("Project name is required");
       return;
     }
+
+    formData.set("color", color);
+
+    addProject({
+      id: `optimistic-${Date.now()}`,
+      name,
+      color,
+      status: "active",
+      createdAt: new Date(),
+      _count: { tasks: 0 },
+      tasks: [],
+    });
 
     setOpen(false);
     setColor(PRESET_COLORS[0]);
     formRef.current?.reset();
-    refresh();
+    setError("");
+
+    createProject(formData).then((result) => {
+      if (result?.error) setError(result.error);
+      refresh();
+    });
   }
 
   return (
@@ -126,8 +136,8 @@ export function NewProjectDialog() {
           </div>
 
           <DialogFooter>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Creating…" : "Create Project"}
+            <Button type="submit">
+              Create Project
             </Button>
           </DialogFooter>
         </form>

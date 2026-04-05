@@ -106,6 +106,10 @@ export function WeeklyPlanView({
     refresh();
   }
 
+  function handleOptimisticAdd(unit: BacklogUnitItem) {
+    setBacklog((prev) => [...prev, unit]);
+  }
+
   async function handleWeeklyTargetBlur() {
     if (weeklyTarget === plan.targetUnits) return;
     setSavingTarget(true);
@@ -217,6 +221,7 @@ export function WeeklyPlanView({
             units={backlog}
             days={dayOptions}
             onScheduled={handleSchedulingChanged}
+            onOptimisticAdd={handleOptimisticAdd}
           />
         </aside>
 

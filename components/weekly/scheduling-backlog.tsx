@@ -29,6 +29,7 @@ interface SchedulingBacklogProps {
   units: BacklogUnitItem[];
   days: DayOption[];
   onScheduled: () => void;
+  onOptimisticAdd: (unit: BacklogUnitItem) => void;
 }
 
 interface ProjectGroup {
@@ -142,9 +143,14 @@ function UnitAssignRow({
   );
 }
 
-function QuickAddUnit({ onCreated }: { onCreated: () => void }) {
+function QuickAddUnit({
+  onCreated,
+  onOptimisticAdd,
+}: {
+  onCreated: () => void;
+  onOptimisticAdd: (unit: BacklogUnitItem) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -156,20 +162,20 @@ function QuickAddUnit({ onCreated }: { onCreated: () => void }) {
       return;
     }
 
-    setPending(true);
-    setError("");
-
-    const result = await createQuickUnit(label);
-    setPending(false);
-
-    if (result?.error) {
-      setError(result.error);
-      return;
-    }
+    onOptimisticAdd({
+      id: `optimistic-${Date.now()}`,
+      label,
+      task: null,
+    });
 
     if (inputRef.current) inputRef.current.value = "";
     setExpanded(false);
-    onCreated();
+    setError("");
+
+    createQuickUnit(label).then((result) => {
+      if (result?.error) setError(result.error);
+      onCreated();
+    });
   }
 
   if (!expanded) {
@@ -191,16 +197,14 @@ function QuickAddUnit({ onCreated }: { onCreated: () => void }) {
         placeholder="Unit label"
         autoFocus
         className="h-7 text-xs"
-        disabled={pending}
       />
       <div className="flex items-center gap-1.5">
         <Button
           type="submit"
           size="sm"
-          disabled={pending}
           className="h-6 text-[11px] px-2 flex-1"
         >
-          {pending ? "Adding…" : "Add"}
+          Add
         </Button>
         <Button
           type="button"
@@ -221,6 +225,7 @@ export function SchedulingBacklog({
   units,
   days,
   onScheduled,
+  onOptimisticAdd,
 }: SchedulingBacklogProps) {
   const { groups, standalone } = groupByProjectAndTask(units);
 
@@ -235,7 +240,7 @@ export function SchedulingBacklog({
         </Badge>
       </div>
 
-      <QuickAddUnit onCreated={onScheduled} />
+      <QuickAddUnit onCreated={onScheduled} onOptimisticAdd={onOptimisticAdd} />
 
       {units.length === 0 && (
         <div className="flex flex-col items-center justify-center py-8 text-center">

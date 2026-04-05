@@ -1,9 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { getCurrentUser } from "@/lib/user";
+import { getCurrentUser, getUserTimezone } from "@/lib/user";
 import { isAIConfigured, callClaude, callClaudeJSON } from "@/lib/ai";
-import { getMonday, addWeeks, toDateOnlyISO } from "@/lib/date-utils";
+import { addWeeks, toDateOnlyISO, toDateOnlyISOInTz, getMondayInTz } from "@/lib/date-utils";
 
 export async function checkAIAvailability() {
   return { configured: isAIConfigured() };
@@ -118,10 +118,11 @@ interface DailyCheckinResponse {
 
 export async function getDailyCheckin() {
   const user = await getCurrentUser();
-  const today = new Date();
-  const monday = getMonday(today);
-  const todayISO = toDateOnlyISO(today);
-  const mondayISO = toDateOnlyISO(monday);
+  const tz = await getUserTimezone();
+  const now = new Date();
+  const todayISO = toDateOnlyISOInTz(now, tz);
+  const monday = getMondayInTz(now, tz);
+  const mondayISO = monday.toISOString().slice(0, 10);
 
   const dailyPlan = await prisma.dailyPlan.findFirst({
     where: {
@@ -162,8 +163,9 @@ export async function getDailyCheckin() {
     return { ok: false as const, error: "All units for today are already completed or skipped." };
   }
 
-  const dayOfWeek = today.toLocaleDateString("en-US", { weekday: "long" });
-  const history = await getDayOfWeekHistory(user.id, today.getDay());
+  const todayDate = new Date(todayISO + "T12:00:00.000Z");
+  const dayOfWeek = todayDate.toLocaleDateString("en-US", { weekday: "long" });
+  const history = await getDayOfWeekHistory(user.id, todayDate.getUTCDay());
 
   const unitList = activeUnits.map(
     (su, i) =>
@@ -202,10 +204,11 @@ ${history ? `Historical ${dayOfWeek} data:\n${history}` : `No historical data fo
 
 export async function applyDailyReorder(orderedUnitIds: string[]) {
   const user = await getCurrentUser();
-  const today = new Date();
-  const monday = getMonday(today);
-  const todayISO = toDateOnlyISO(today);
-  const mondayISO = toDateOnlyISO(monday);
+  const tz = await getUserTimezone();
+  const now = new Date();
+  const todayISO = toDateOnlyISOInTz(now, tz);
+  const monday = getMondayInTz(now, tz);
+  const mondayISO = monday.toISOString().slice(0, 10);
 
   const dailyPlan = await prisma.dailyPlan.findFirst({
     where: {

@@ -70,3 +70,51 @@ export function toDateOnlyISO(date: Date): string {
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+
+/**
+ * Returns the YYYY-MM-DD string for `date` as seen in `tz`
+ * (e.g. "Europe/Moscow"). Falls back to local (server) time
+ * if tz is empty or invalid.
+ */
+export function toDateOnlyISOInTz(date: Date, tz: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+
+    const y = parts.find((p) => p.type === "year")!.value;
+    const m = parts.find((p) => p.type === "month")!.value;
+    const d = parts.find((p) => p.type === "day")!.value;
+    return `${y}-${m}-${d}`;
+  } catch {
+    return toDateOnlyISO(date);
+  }
+}
+
+/**
+ * Returns a Date set to midnight UTC for the "today" date in the given tz.
+ * Useful for building a Date that represents the calendar day in the user's
+ * timezone without shifting.
+ */
+export function todayDateInTz(tz: string): Date {
+  const iso = toDateOnlyISOInTz(new Date(), tz);
+  return new Date(iso + "T00:00:00.000Z");
+}
+
+/**
+ * Returns the Monday of the week that contains `date` as seen in `tz`.
+ */
+export function getMondayInTz(date: Date, tz: string): Date {
+  const todayISO = toDateOnlyISOInTz(date, tz);
+  const local = new Date(todayISO + "T12:00:00.000Z");
+  const day = local.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  local.setUTCDate(local.getUTCDate() + diff);
+  const y = local.getUTCFullYear();
+  const m = String(local.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(local.getUTCDate()).padStart(2, "0");
+  return new Date(`${y}-${m}-${d}T00:00:00.000Z`);
+}

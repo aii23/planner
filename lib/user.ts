@@ -19,10 +19,17 @@ export async function getCurrentUser() {
           week_start_day: "monday",
           daily_checkin: true,
           notification_sound: true,
+          timezone: "UTC",
         },
       },
     });
   }
 
   return user;
+}
+
+export async function getUserTimezone(): Promise<string> {
+  const user = await getCurrentUser();
+  const prefs = user.preferences as Record<string, unknown> | null;
+  return (prefs?.timezone as string) || "UTC";
 }

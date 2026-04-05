@@ -2,15 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getCurrentUser } from "@/lib/user";
-import { getMonday, toDateOnlyISO } from "@/lib/date-utils";
+import { getCurrentUser, getUserTimezone } from "@/lib/user";
+import { toDateOnlyISOInTz, getMondayInTz } from "@/lib/date-utils";
 
 export async function getTodayQueue() {
   const user = await getCurrentUser();
-  const today = new Date();
-  const monday = getMonday(today);
-  const todayISO = toDateOnlyISO(today);
-  const mondayISO = toDateOnlyISO(monday);
+  const tz = await getUserTimezone();
+  const now = new Date();
+  const todayISO = toDateOnlyISOInTz(now, tz);
+  const monday = getMondayInTz(now, tz);
+  const mondayISO = monday.toISOString().slice(0, 10);
 
   const dailyPlan = await prisma.dailyPlan.findFirst({
     where: {
@@ -127,10 +128,11 @@ export async function quickAddUnit(taskId: string, label: string | null) {
   });
   if (!task) return { error: "Task not found" };
 
-  const today = new Date();
-  const monday = getMonday(today);
-  const todayISO = toDateOnlyISO(today);
-  const mondayISO = toDateOnlyISO(monday);
+  const tz = await getUserTimezone();
+  const now = new Date();
+  const todayISO = toDateOnlyISOInTz(now, tz);
+  const monday = getMondayInTz(now, tz);
+  const mondayISO = monday.toISOString().slice(0, 10);
 
   const dailyPlan = await prisma.dailyPlan.findFirst({
     where: {

@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Inbox, Eye, EyeOff, Filter } from "lucide-react";
+import { Inbox, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProjectCard } from "@/components/backlog/project-card";
 import { NewProjectDialog } from "@/components/backlog/new-project-dialog";
-import { BacklogProvider } from "@/components/backlog/backlog-context";
+import {
+  BacklogProvider,
+  type OptimisticProject,
+  type OptimisticTask,
+  type OptimisticUnit,
+} from "@/components/backlog/backlog-context";
 import { getProjects } from "@/app/actions/projects";
 
 type ProjectWithCount = Awaited<ReturnType<typeof getProjects>>[number];
@@ -46,6 +51,39 @@ export function BacklogProjects({
     refresh();
   }, [refresh]);
 
+  const addProject = useCallback((project: OptimisticProject) => {
+    setProjects((prev) => [project as unknown as ProjectWithCount, ...prev]);
+  }, []);
+
+  const addTask = useCallback((projectId: string, task: OptimisticTask) => {
+    setProjects((prev) =>
+      prev.map((p) => {
+        if (p.id !== projectId) return p;
+        return {
+          ...p,
+          _count: { ...p._count, tasks: p._count.tasks + 1 },
+          tasks: [...p.tasks, task as unknown as ProjectWithCount["tasks"][number]],
+        } as typeof p;
+      })
+    );
+  }, []);
+
+  const addUnits = useCallback((taskId: string, units: OptimisticUnit[]) => {
+    setProjects((prev) =>
+      prev.map((p) => ({
+        ...p,
+        tasks: p.tasks.map((t) => {
+          if (t.id !== taskId) return t;
+          return {
+            ...t,
+            _count: { ...t._count, units: t._count.units + units.length },
+            units: [...t.units, ...units as unknown as typeof t.units],
+          } as typeof t;
+        }),
+      }) as typeof p)
+    );
+  }, []);
+
   const filteredProjects = projects.map((project) => {
     if (taskFilter === "all") return project;
     return {
@@ -60,7 +98,10 @@ export function BacklogProjects({
 
   const hasProjects = visibleProjects.length > 0;
 
-  const ctxValue = useMemo(() => ({ refresh }), [refresh]);
+  const ctxValue = useMemo(
+    () => ({ refresh, addProject, addTask, addUnits }),
+    [refresh, addProject, addTask, addUnits]
+  );
 
   return (
     <BacklogProvider value={ctxValue}>

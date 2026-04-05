@@ -2,10 +2,11 @@
 
 import { useState, useRef } from "react";
 import { Plus, Layers } from "lucide-react";
-import { useBacklogRefresh } from "@/components/backlog/backlog-context";
+import { useBacklog } from "@/components/backlog/backlog-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createUnit, createBulkUnits } from "@/app/actions/units";
+import type { UnitStatus } from "@/src/generated/prisma/client";
 
 interface AddUnitFormProps {
   taskId: string;
@@ -13,28 +14,36 @@ interface AddUnitFormProps {
 
 export function AddUnitForm({ taskId }: AddUnitFormProps) {
   const [mode, setMode] = useState<"idle" | "single" | "bulk">("idle");
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [bulkCount, setBulkCount] = useState(5);
   const formRef = useRef<HTMLFormElement>(null);
-  const refresh = useBacklogRefresh();
+  const { addUnits, refresh } = useBacklog();
+
+  function makeOptimisticUnit(label: string | null) {
+    return {
+      id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      label,
+      status: "pending" as UnitStatus,
+      actualDurationSeconds: null,
+      actualUnitsConsumed: null,
+      completedAt: null,
+      createdAt: new Date(),
+    };
+  }
 
   async function handleAddSingle(formData: FormData) {
-    setPending(true);
-    setError("");
     formData.set("taskId", taskId);
+    const label = (formData.get("label") as string)?.trim() || null;
 
-    const result = await createUnit(formData);
-    setPending(false);
-
-    if (result?.error) {
-      setError(result.error);
-      return;
-    }
-
+    addUnits(taskId, [makeOptimisticUnit(label)]);
     formRef.current?.reset();
     setMode("idle");
-    refresh();
+    setError("");
+
+    createUnit(formData).then((result) => {
+      if (result?.error) setError(result.error);
+      refresh();
+    });
   }
 
   async function handleAddBulk() {
@@ -43,20 +52,18 @@ export function AddUnitForm({ taskId }: AddUnitFormProps) {
       return;
     }
 
-    setPending(true);
-    setError("");
-
-    const result = await createBulkUnits(taskId, bulkCount);
-    setPending(false);
-
-    if (result?.error) {
-      setError(result.error);
-      return;
-    }
-
+    const units = Array.from({ length: bulkCount }, (_, i) =>
+      makeOptimisticUnit(bulkCount > 1 ? `Unit ${i + 1}` : null)
+    );
+    addUnits(taskId, units);
     setMode("idle");
     setBulkCount(5);
-    refresh();
+    setError("");
+
+    createBulkUnits(taskId, bulkCount).then((result) => {
+      if (result?.error) setError(result.error);
+      refresh();
+    });
   }
 
   if (mode === "idle") {
@@ -97,10 +104,9 @@ export function AddUnitForm({ taskId }: AddUnitFormProps) {
         <Button
           size="sm"
           onClick={handleAddBulk}
-          disabled={pending}
           className="h-6 text-[11px] px-2"
         >
-          {pending ? "Adding…" : "Add"}
+          Add
         </Button>
         <Button
           variant="ghost"
@@ -130,10 +136,9 @@ export function AddUnitForm({ taskId }: AddUnitFormProps) {
       <Button
         type="submit"
         size="sm"
-        disabled={pending}
         className="h-6 text-[11px] px-2"
       >
-        {pending ? "Adding…" : "Add"}
+        Add
       </Button>
       <Button
         type="button"
