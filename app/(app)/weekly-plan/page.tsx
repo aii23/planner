@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import { getOrCreateWeeklyPlan, getUnscheduledUnits } from "@/app/actions/weekly-plan";
-import { WeeklyPlanView } from "@/components/weekly-plan-view";
+import { WeeklyPlanView } from "@/components/weekly/weekly-plan-view";
 import { getMonday, toDateOnlyISO } from "@/lib/date-utils";
 
 export default async function WeeklyPlanPage() {

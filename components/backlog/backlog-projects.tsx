@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Inbox, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ProjectCard } from "@/components/project-card";
-import { NewProjectDialog } from "@/components/new-project-dialog";
+import { ProjectCard } from "@/components/backlog/project-card";
+import { NewProjectDialog } from "@/components/backlog/new-project-dialog";
 import { getProjects } from "@/app/actions/projects";
 
 type ProjectWithCount = Awaited<ReturnType<typeof getProjects>>[number];

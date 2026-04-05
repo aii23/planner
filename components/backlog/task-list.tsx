@@ -1,8 +1,8 @@
 "use client";
 
 import { ListTodo } from "lucide-react";
-import { TaskRow, type TaskWithUnits } from "@/components/task-row";
-import { AddTaskForm } from "@/components/add-task-form";
+import { TaskRow, type TaskWithUnits } from "@/components/backlog/task-row";
+import { AddTaskForm } from "@/components/backlog/add-task-form";
 
 interface TaskListProps {
   tasks: TaskWithUnits[];

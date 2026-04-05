@@ -4,9 +4,9 @@ import { useState, useCallback, useTransition } from "react";
 import { Target } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { WeekSelector } from "@/components/week-selector";
-import { DayColumn, type DailyPlanData } from "@/components/day-column";
-import { SchedulingBacklog } from "@/components/scheduling-backlog";
+import { WeekSelector } from "@/components/weekly/week-selector";
+import { DayColumn, type DailyPlanData } from "@/components/weekly/day-column";
+import { SchedulingBacklog } from "@/components/weekly/scheduling-backlog";
 import {
   getMonday,
   addWeeks,

@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
-import { BacklogProjects } from "@/components/backlog-projects";
+import { BacklogProjects } from "@/components/backlog/backlog-projects";
 import { getProjects } from "@/app/actions/projects";
 
 export default async function BacklogPage() {

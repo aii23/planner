@@ -5,11 +5,11 @@ import { Archive, ArchiveRestore, ChevronDown, ListTodo, CheckCircle2 } from "lu
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { EditProjectDialog } from "@/components/edit-project-dialog";
-import { TaskList } from "@/components/task-list";
+import { EditProjectDialog } from "@/components/backlog/edit-project-dialog";
+import { TaskList } from "@/components/backlog/task-list";
 import { archiveProject } from "@/app/actions/projects";
 import { cn } from "@/lib/utils";
-import type { TaskWithUnits } from "@/components/task-row";
+import type { TaskWithUnits } from "@/components/backlog/task-row";
 
 interface ProjectCardProps {
   project: {

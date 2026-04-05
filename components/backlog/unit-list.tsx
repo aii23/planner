@@ -1,8 +1,8 @@
 "use client";
 
-import { UnitRow } from "@/components/unit-row";
-import { AddUnitForm } from "@/components/add-unit-form";
-import type { UnitData } from "@/components/task-row";
+import { UnitRow } from "@/components/backlog/unit-row";
+import { AddUnitForm } from "@/components/backlog/add-unit-form";
+import type { UnitData } from "@/components/backlog/task-row";
 
 interface UnitListProps {
   units: UnitData[];

@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import { getTodayQueue, getUserPreferences } from "@/app/actions/timer";
-import { TimerView } from "@/components/timer-view";
+import { TimerView } from "@/components/timer/timer-view";
 
 export default async function TodayPage() {
   await connection();

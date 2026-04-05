@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { updateUnit, deleteUnit } from "@/app/actions/units";
 import { cn } from "@/lib/utils";
-import type { UnitData } from "@/components/task-row";
+import type { UnitData } from "@/components/backlog/task-row";
 import type { UnitStatus } from "@/src/generated/prisma/client";
 
 const UNIT_STATUS_CONFIG: Record<

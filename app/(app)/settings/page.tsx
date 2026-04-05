@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import { getPreferences } from "@/app/actions/settings";
-import { SettingsForm } from "@/components/settings-form";
+import { SettingsForm } from "@/components/settings/settings-form";
 
 export default async function SettingsPage() {
   await connection();

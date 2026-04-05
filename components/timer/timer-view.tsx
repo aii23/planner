@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTimer } from "@/hooks/use-timer";
 import { useNotifications } from "@/hooks/use-notifications";
-import { TimerDisplay } from "@/components/timer-display";
-import { TimerControls } from "@/components/timer-controls";
-import { UnitQueue, type QueueItem } from "@/components/unit-queue";
-import { CheckpointPopup } from "@/components/checkpoint-popup";
+import { TimerDisplay } from "@/components/timer/timer-display";
+import { TimerControls } from "@/components/timer/timer-controls";
+import { UnitQueue, type QueueItem } from "@/components/timer/unit-queue";
+import { CheckpointPopup } from "@/components/timer/checkpoint-popup";
 import {
   getTodayQueue,
   completeCurrentUnit,
