@@ -20,6 +20,7 @@ import {
   incrementUnitsConsumed,
   splitUnit,
 } from "@/app/actions/timer";
+import { DailyCheckin } from "@/components/ai/daily-checkin";
 
 interface TimerViewProps {
   initialQueue: QueueItem[];
@@ -376,6 +377,10 @@ export function TimerView({
       </div>
 
       <aside className="w-72 shrink-0 rounded-lg border border-border bg-card p-4 overflow-y-auto max-h-[calc(100vh-200px)]">
+        <div className="mb-3 pb-3 border-b border-border">
+          <DailyCheckin queue={queue} onReorderApplied={refreshQueue} />
+        </div>
+
         <UnitQueue
           queue={queue}
           currentUnitId={currentUnitId}

@@ -27,6 +27,7 @@ import {
   isCurrentWeek,
   toDateOnlyISO,
 } from "@/lib/date-utils";
+import { WeeklyReview } from "@/components/ai/weekly-review";
 
 type SummaryData = NonNullable<Awaited<ReturnType<typeof getWeeklySummary>>>;
 
@@ -246,6 +247,11 @@ export function SummaryView({ initialSummary, initialMonday }: SummaryViewProps)
           </CardContent>
         </Card>
       )}
+
+      <WeeklyReview
+        weekStartISO={toDateOnlyISO(monday)}
+        hasSummaryData={true}
+      />
     </div>
   );
 }

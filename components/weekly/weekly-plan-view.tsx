@@ -18,6 +18,7 @@ import {
   getCarryForwardUnits,
   updateWeeklyTarget,
 } from "@/app/actions/weekly-plan";
+import { WeeklyPlanReview } from "@/components/ai/weekly-plan-review";
 
 interface BacklogUnitItem {
   id: string;
@@ -229,6 +230,8 @@ export function WeeklyPlanView({
           ))}
         </div>
       </div>
+
+      <WeeklyPlanReview weekStartISO={toDateOnlyISO(monday)} />
     </div>
   );
 }
