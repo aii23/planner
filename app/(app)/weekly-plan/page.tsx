@@ -1,6 +1,16 @@
-import { Calendar } from "lucide-react";
+import { connection } from "next/server";
+import { getOrCreateWeeklyPlan } from "@/app/actions/weekly-plan";
+import { WeeklyPlanView } from "@/components/weekly-plan-view";
+import { getMonday, toDateOnlyISO } from "@/lib/date-utils";
 
-export default function WeeklyPlanPage() {
+export default async function WeeklyPlanPage() {
+  await connection();
+
+  const now = new Date();
+  const monday = getMonday(now);
+  const mondayISO = toDateOnlyISO(monday);
+  const plan = await getOrCreateWeeklyPlan(mondayISO);
+
   return (
     <div className="space-y-6">
       <div>
@@ -10,12 +20,7 @@ export default function WeeklyPlanPage() {
         </p>
       </div>
 
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-        <Calendar className="h-10 w-10 text-muted-foreground/40" />
-        <p className="mt-3 text-sm text-muted-foreground">
-          Weekly planning will be available after creating projects and tasks.
-        </p>
-      </div>
+      <WeeklyPlanView initialPlan={plan} initialMonday={mondayISO} />
     </div>
   );
 }
