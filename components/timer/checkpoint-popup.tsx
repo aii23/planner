@@ -1,8 +1,7 @@
 "use client";
 
-import { CheckCircle2, ArrowRight, Timer } from "lucide-react";
+import { CheckCircle2, ArrowRight, Split, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 interface CheckpointPopupProps {
   visible: boolean;
@@ -10,6 +9,7 @@ interface CheckpointPopupProps {
   unitLabel: string;
   onComplete: () => void;
   onContinue: () => void;
+  onSplit: () => void;
 }
 
 export function CheckpointPopup({
@@ -18,6 +18,7 @@ export function CheckpointPopup({
   unitLabel,
   onComplete,
   onContinue,
+  onSplit,
 }: CheckpointPopupProps) {
   if (!visible) return null;
 
@@ -39,6 +40,10 @@ export function CheckpointPopup({
           <Button onClick={onComplete} className="w-full gap-2" size="sm">
             <CheckCircle2 className="h-4 w-4" />
             Complete &amp; Next
+          </Button>
+          <Button onClick={onSplit} variant="secondary" className="w-full gap-2" size="sm">
+            <Split className="h-4 w-4" />
+            Split: Done + Follow-up
           </Button>
           <Button onClick={onContinue} variant="outline" className="w-full gap-2" size="sm">
             <ArrowRight className="h-4 w-4" />

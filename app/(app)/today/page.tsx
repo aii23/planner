@@ -23,6 +23,7 @@ export default async function TodayPage() {
         initialQueue={queue}
         workDurationMin={prefs.workDurationMin}
         restDurationMin={prefs.restDurationMin}
+        notificationSound={prefs.notificationSound}
       />
     </div>
   );

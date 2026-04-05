@@ -1,13 +1,24 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Inbox, Eye, EyeOff } from "lucide-react";
+import { Inbox, Eye, EyeOff, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ProjectCard } from "@/components/backlog/project-card";
 import { NewProjectDialog } from "@/components/backlog/new-project-dialog";
 import { getProjects } from "@/app/actions/projects";
 
 type ProjectWithCount = Awaited<ReturnType<typeof getProjects>>[number];
+
+const TASK_STATUS_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "backlog", label: "Backlog" },
+  { value: "planned", label: "Planned" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "done", label: "Done" },
+] as const;
+
+type TaskStatusFilter = (typeof TASK_STATUS_FILTERS)[number]["value"];
 
 interface BacklogProjectsProps {
   initialProjects: ProjectWithCount[];
@@ -21,6 +32,7 @@ export function BacklogProjects({
   const [showArchived, setShowArchived] = useState(false);
   const [projects, setProjects] = useState(initialProjects);
   const [loading, setLoading] = useState(false);
+  const [taskFilter, setTaskFilter] = useState<TaskStatusFilter>("all");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -33,48 +45,82 @@ export function BacklogProjects({
     refresh();
   }, [refresh]);
 
-  const hasProjects = projects.length > 0;
+  const filteredProjects = projects.map((project) => {
+    if (taskFilter === "all") return project;
+    return {
+      ...project,
+      tasks: project.tasks.filter((t) => t.status === taskFilter),
+    };
+  });
+
+  const visibleProjects = taskFilter === "all"
+    ? filteredProjects
+    : filteredProjects.filter((p) => p.tasks.length > 0);
+
+  const hasProjects = visibleProjects.length > 0;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <NewProjectDialog />
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <NewProjectDialog />
+        </div>
 
-        {(hasArchived || showArchived) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowArchived(!showArchived)}
-          >
-            {showArchived ? (
-              <>
-                <EyeOff className="h-3.5 w-3.5 mr-1.5" />
-                Hide archived
-              </>
-            ) : (
-              <>
-                <Eye className="h-3.5 w-3.5 mr-1.5" />
-                Show archived
-              </>
-            )}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+            {TASK_STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setTaskFilter(f.value)}
+                className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                  taskFilter === f.value
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {(hasArchived || showArchived) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowArchived(!showArchived)}
+            >
+              {showArchived ? (
+                <>
+                  <EyeOff className="h-3.5 w-3.5 mr-1.5" />
+                  Hide archived
+                </>
+              ) : (
+                <>
+                  <Eye className="h-3.5 w-3.5 mr-1.5" />
+                  Show archived
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
 
       {!hasProjects && !loading && (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
           <Inbox className="h-10 w-10 text-muted-foreground/40" />
           <p className="mt-3 text-sm text-muted-foreground">
-            {showArchived
-              ? "No archived projects."
-              : "No projects yet. Create your first project to get started."}
+            {taskFilter !== "all"
+              ? `No tasks with status "${taskFilter.replace("_", " ")}".`
+              : showArchived
+                ? "No archived projects."
+                : "No projects yet. Create your first project to get started."}
           </p>
         </div>
       )}
 
       {hasProjects && (
         <div className="space-y-3">
-          {projects.map((project) => (
+          {visibleProjects.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
         </div>

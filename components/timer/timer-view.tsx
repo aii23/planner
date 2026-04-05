@@ -16,18 +16,22 @@ import {
   skipCurrentUnit,
   quickAddUnit,
   saveTimerSession,
+  incrementUnitsConsumed,
+  splitUnit,
 } from "@/app/actions/timer";
 
 interface TimerViewProps {
   initialQueue: QueueItem[];
   workDurationMin: number;
   restDurationMin: number;
+  notificationSound: boolean;
 }
 
 export function TimerView({
   initialQueue,
   workDurationMin,
   restDurationMin,
+  notificationSound,
 }: TimerViewProps) {
   const [queue, setQueue] = useState<QueueItem[]>(initialQueue);
   const [currentUnitId, setCurrentUnitId] = useState<string | null>(null);
@@ -43,6 +47,10 @@ export function TimerView({
   const prevStateRef = useRef<string>("IDLE");
 
   const { requestPermission, notify, playChime } = useNotifications();
+
+  const chime = useCallback(() => {
+    if (notificationSound) playChime();
+  }, [notificationSound, playChime]);
 
   const timer = useTimer({
     workDurationSec: workDurationMin * 60,
@@ -97,9 +105,9 @@ export function TimerView({
       lastCheckpointRef.current = checkpointAt;
       setCheckpointMinute(checkpointAt);
       setCheckpointVisible(true);
-      playChime();
+      chime();
     }
-  }, [timer.state, timer.elapsedSeconds, playChime]);
+  }, [timer.state, timer.elapsedSeconds, chime]);
 
   // Notifications + session saving on state transitions
   useEffect(() => {
@@ -117,7 +125,7 @@ export function TimerView({
 
     // Work ended — notify + save session
     if (curr === "WORK_ENDED" && prev === "WORK_RUNNING") {
-      playChime();
+      chime();
       notify("Work session complete!", "Time for a break.");
 
       if (sessionStartRef.current) {
@@ -140,7 +148,7 @@ export function TimerView({
 
     // Rest ended — notify + save session
     if (curr === "REST_ENDED" && prev === "REST_RUNNING") {
-      playChime();
+      chime();
       notify("Rest is over!", "Ready for the next work session?");
 
       if (sessionStartRef.current) {
@@ -156,7 +164,7 @@ export function TimerView({
       }
       sessionStartRef.current = null;
     }
-  }, [timer.state, playChime, notify, currentUnitId]);
+  }, [timer.state, chime, notify, currentUnitId]);
 
   // Auto transition: WORK_ENDED → REST_RUNNING
   useEffect(() => {
@@ -246,8 +254,32 @@ export function TimerView({
     handleCompleteUnit();
   }
 
-  function handleCheckpointContinue() {
+  async function handleCheckpointContinue() {
     setCheckpointVisible(false);
+    if (currentUnitId) {
+      await incrementUnitsConsumed(currentUnitId);
+    }
+  }
+
+  async function handleCheckpointSplit() {
+    setCheckpointVisible(false);
+    if (!currentUnitId) return;
+    const result = await splitUnit(currentUnitId, null);
+
+    setQueue((prev) =>
+      prev.map((q) =>
+        q.unit.id === currentUnitId
+          ? { ...q, unit: { ...q.unit, status: "completed" } }
+          : q
+      )
+    );
+
+    const next = getNextUnit(currentUnitId);
+    const nextId = next?.unit.id ?? null;
+    setCurrentUnitId(nextId);
+    timer.setPersistedUnitId(nextId);
+
+    await refreshQueue();
   }
 
   function handleEndWork() {
@@ -398,6 +430,7 @@ export function TimerView({
         unitLabel={checkpointLabel}
         onComplete={handleCheckpointComplete}
         onContinue={handleCheckpointContinue}
+        onSplit={handleCheckpointSplit}
       />
     </div>
   );

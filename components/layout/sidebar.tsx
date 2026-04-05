@@ -31,7 +31,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r border-border bg-sidebar">
+    <aside className="hidden md:flex h-screen w-60 flex-col border-r border-border bg-sidebar">
       <div className="flex h-14 items-center px-5">
         <Link href="/backlog" className="text-lg font-semibold tracking-tight">
           Planer

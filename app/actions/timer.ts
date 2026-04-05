@@ -62,6 +62,7 @@ export async function getUserPreferences() {
   return {
     workDurationMin: (prefs?.work_duration_min as number) ?? 50,
     restDurationMin: (prefs?.rest_duration_min as number) ?? 10,
+    notificationSound: (prefs?.notification_sound as boolean) ?? true,
   };
 }
 
@@ -153,6 +154,72 @@ export async function quickAddUnit(taskId: string, label: string | null) {
 
   revalidatePath("/today");
   return { success: true, unitId: unit.id };
+}
+
+export async function incrementUnitsConsumed(unitId: string) {
+  const user = await getCurrentUser();
+
+  const unit = await prisma.unit.findFirst({
+    where: { id: unitId, userId: user.id },
+  });
+  if (!unit) return { error: "Unit not found" };
+
+  await prisma.unit.update({
+    where: { id: unitId },
+    data: { actualUnitsConsumed: (unit.actualUnitsConsumed ?? 1) + 1 },
+  });
+
+  return { success: true };
+}
+
+export async function splitUnit(unitId: string, followUpLabel: string | null) {
+  const user = await getCurrentUser();
+
+  const unit = await prisma.unit.findFirst({
+    where: { id: unitId, userId: user.id },
+    include: { scheduledUnits: true },
+  });
+  if (!unit) return { error: "Unit not found" };
+
+  await prisma.unit.update({
+    where: { id: unitId },
+    data: { status: "completed", completedAt: new Date() },
+  });
+
+  const completedCount = await prisma.unit.count({
+    where: { taskId: unit.taskId, status: "completed" },
+  });
+  await prisma.task.update({
+    where: { id: unit.taskId },
+    data: { completedUnits: completedCount },
+  });
+
+  const newUnit = await prisma.unit.create({
+    data: {
+      taskId: unit.taskId,
+      userId: user.id,
+      label: followUpLabel?.trim() || (unit.label ? `${unit.label} (cont.)` : null),
+      status: "scheduled",
+    },
+  });
+
+  if (unit.scheduledUnits.length > 0) {
+    const su = unit.scheduledUnits[0];
+    const maxOrder = await prisma.scheduledUnit.aggregate({
+      where: { dailyPlanId: su.dailyPlanId },
+      _max: { sortOrder: true },
+    });
+    await prisma.scheduledUnit.create({
+      data: {
+        dailyPlanId: su.dailyPlanId,
+        unitId: newUnit.id,
+        sortOrder: (maxOrder._max.sortOrder ?? -1) + 1,
+      },
+    });
+  }
+
+  revalidatePath("/today");
+  return { success: true, newUnitId: newUnit.id };
 }
 
 export async function saveTimerSession(

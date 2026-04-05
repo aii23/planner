@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
-import { addDays, toDateOnlyISO } from "@/lib/date-utils";
+import { addDays, addWeeks, toDateOnlyISO } from "@/lib/date-utils";
 import type { UnitStatus } from "@/src/generated/prisma/client";
 
 export async function getOrCreateWeeklyPlan(weekStartISO: string) {
@@ -250,4 +250,62 @@ export async function reorderUnit(
 
   revalidatePath("/weekly-plan");
   return { success: true };
+}
+
+export async function getCarryForwardUnits(weekStartISO: string) {
+  const user = await getCurrentUser();
+  const currentMonday = new Date(weekStartISO + "T00:00:00.000Z");
+  const prevMonday = addWeeks(currentMonday, -1);
+
+  const prevPlan = await prisma.weeklyPlan.findUnique({
+    where: {
+      userId_weekStartDate: {
+        userId: user.id,
+        weekStartDate: prevMonday,
+      },
+    },
+    include: {
+      dailyPlans: {
+        include: {
+          scheduledUnits: {
+            include: {
+              unit: {
+                include: {
+                  task: {
+                    select: {
+                      id: true,
+                      title: true,
+                      project: { select: { id: true, name: true, color: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!prevPlan) return [];
+
+  const unfinished = prevPlan.dailyPlans
+    .flatMap((dp) => dp.scheduledUnits)
+    .filter(
+      (su) =>
+        su.unit.status !== "completed" && su.unit.status !== "skipped"
+    )
+    .map((su) => ({
+      id: su.unit.id,
+      label: su.unit.label,
+      status: su.unit.status,
+      task: su.unit.task,
+    }));
+
+  const seen = new Set<string>();
+  return unfinished.filter((u) => {
+    if (seen.has(u.id)) return false;
+    seen.add(u.id);
+    return true;
+  });
 }
