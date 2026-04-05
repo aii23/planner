@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Pencil } from "lucide-react";
+import { useBacklogRefresh } from "@/components/backlog/backlog-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +41,7 @@ export function EditTaskDialog({ task }: EditTaskDialogProps) {
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<TaskStatus>(task.status);
   const formRef = useRef<HTMLFormElement>(null);
+  const refresh = useBacklogRefresh();
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -56,6 +58,7 @@ export function EditTaskDialog({ task }: EditTaskDialogProps) {
     }
 
     setOpen(false);
+    refresh();
   }
 
   function handleOpenChange(nextOpen: boolean) {

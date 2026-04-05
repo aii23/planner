@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Plus, Layers } from "lucide-react";
+import { useBacklogRefresh } from "@/components/backlog/backlog-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createUnit, createBulkUnits } from "@/app/actions/units";
@@ -16,6 +17,7 @@ export function AddUnitForm({ taskId }: AddUnitFormProps) {
   const [error, setError] = useState("");
   const [bulkCount, setBulkCount] = useState(5);
   const formRef = useRef<HTMLFormElement>(null);
+  const refresh = useBacklogRefresh();
 
   async function handleAddSingle(formData: FormData) {
     setPending(true);
@@ -32,6 +34,7 @@ export function AddUnitForm({ taskId }: AddUnitFormProps) {
 
     formRef.current?.reset();
     setMode("idle");
+    refresh();
   }
 
   async function handleAddBulk() {
@@ -53,6 +56,7 @@ export function AddUnitForm({ taskId }: AddUnitFormProps) {
 
     setMode("idle");
     setBulkCount(5);
+    refresh();
   }
 
   if (mode === "idle") {

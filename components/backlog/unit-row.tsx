@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Trash2, Check, SkipForward } from "lucide-react";
+import { useBacklogRefresh } from "@/components/backlog/backlog-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { updateUnit, deleteUnit } from "@/app/actions/units";
@@ -26,6 +27,7 @@ interface UnitRowProps {
 
 export function UnitRow({ unit }: UnitRowProps) {
   const [pending, setPending] = useState(false);
+  const refresh = useBacklogRefresh();
 
   const config = UNIT_STATUS_CONFIG[unit.status] ?? UNIT_STATUS_CONFIG.pending;
   const isFinished = unit.status === "completed" || unit.status === "skipped";
@@ -41,18 +43,21 @@ export function UnitRow({ unit }: UnitRowProps) {
     setPending(true);
     await updateUnit(unit.id, { status: "completed" as UnitStatus });
     setPending(false);
+    refresh();
   }
 
   async function handleSkip() {
     setPending(true);
     await updateUnit(unit.id, { status: "skipped" as UnitStatus });
     setPending(false);
+    refresh();
   }
 
   async function handleDelete() {
     setPending(true);
     await deleteUnit(unit.id);
     setPending(false);
+    refresh();
   }
 
   return (

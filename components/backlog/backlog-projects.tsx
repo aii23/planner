@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Inbox, Eye, EyeOff, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProjectCard } from "@/components/backlog/project-card";
 import { NewProjectDialog } from "@/components/backlog/new-project-dialog";
+import { BacklogProvider } from "@/components/backlog/backlog-context";
 import { getProjects } from "@/app/actions/projects";
 
 type ProjectWithCount = Awaited<ReturnType<typeof getProjects>>[number];
@@ -59,7 +60,10 @@ export function BacklogProjects({
 
   const hasProjects = visibleProjects.length > 0;
 
+  const ctxValue = useMemo(() => ({ refresh }), [refresh]);
+
   return (
+    <BacklogProvider value={ctxValue}>
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
@@ -126,5 +130,6 @@ export function BacklogProjects({
         </div>
       )}
     </div>
+    </BacklogProvider>
   );
 }

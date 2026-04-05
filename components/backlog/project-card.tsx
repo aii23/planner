@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Archive, ArchiveRestore, ChevronDown, ListTodo, CheckCircle2 } from "lucide-react";
+import { useBacklogRefresh } from "@/components/backlog/backlog-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -26,6 +27,7 @@ interface ProjectCardProps {
 export function ProjectCard({ project }: ProjectCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const refresh = useBacklogRefresh();
   const isArchived = project.status === "archived";
 
   const doneTasks = project.tasks.filter((t) => t.status === "done").length;
@@ -37,6 +39,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
     formData.set("id", project.id);
     await archiveProject(formData);
     setArchiving(false);
+    refresh();
   }
 
   return (

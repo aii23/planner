@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Trash2, ArrowRight, ChevronDown } from "lucide-react";
+import { useBacklogRefresh } from "@/components/backlog/backlog-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -54,6 +55,7 @@ export function TaskRow({ task, projectColor }: TaskRowProps) {
   const [transitioning, setTransitioning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [unitsExpanded, setUnitsExpanded] = useState(false);
+  const refresh = useBacklogRefresh();
 
   const completedUnitCount = task.units.filter(
     (u) => u.status === "completed"
@@ -72,6 +74,7 @@ export function TaskRow({ task, projectColor }: TaskRowProps) {
     setTransitioning(true);
     await updateTaskStatus(task.id, config.next);
     setTransitioning(false);
+    refresh();
   }
 
   async function handleDelete() {
@@ -79,6 +82,7 @@ export function TaskRow({ task, projectColor }: TaskRowProps) {
     setDeleting(true);
     await deleteTask(task.id);
     setDeleting(false);
+    refresh();
   }
 
   return (

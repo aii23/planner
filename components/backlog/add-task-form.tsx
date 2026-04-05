@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Plus, X } from "lucide-react";
+import { useBacklogRefresh } from "@/components/backlog/backlog-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +17,7 @@ export function AddTaskForm({ projectId }: AddTaskFormProps) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const refresh = useBacklogRefresh();
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -32,6 +34,7 @@ export function AddTaskForm({ projectId }: AddTaskFormProps) {
 
     formRef.current?.reset();
     setExpanded(false);
+    refresh();
   }
 
   if (!expanded) {

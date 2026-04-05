@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Plus } from "lucide-react";
+import { useBacklogRefresh } from "@/components/backlog/backlog-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,6 +35,7 @@ export function NewProjectDialog() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const refresh = useBacklogRefresh();
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -51,6 +53,7 @@ export function NewProjectDialog() {
     setOpen(false);
     setColor(PRESET_COLORS[0]);
     formRef.current?.reset();
+    refresh();
   }
 
   return (
