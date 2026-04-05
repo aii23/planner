@@ -1,6 +1,15 @@
-import { Timer } from "lucide-react";
+import { connection } from "next/server";
+import { getTodayQueue, getUserPreferences } from "@/app/actions/timer";
+import { TimerView } from "@/components/timer-view";
 
-export default function TodayPage() {
+export default async function TodayPage() {
+  await connection();
+
+  const [queue, prefs] = await Promise.all([
+    getTodayQueue(),
+    getUserPreferences(),
+  ]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -10,12 +19,11 @@ export default function TodayPage() {
         </p>
       </div>
 
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-        <Timer className="h-10 w-10 text-muted-foreground/40" />
-        <p className="mt-3 text-sm text-muted-foreground">
-          Schedule units for today to start your work session.
-        </p>
-      </div>
+      <TimerView
+        initialQueue={queue}
+        workDurationMin={prefs.workDurationMin}
+        restDurationMin={prefs.restDurationMin}
+      />
     </div>
   );
 }
