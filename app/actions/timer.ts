@@ -154,3 +154,24 @@ export async function quickAddUnit(taskId: string, label: string | null) {
   revalidatePath("/today");
   return { success: true, unitId: unit.id };
 }
+
+export async function saveTimerSession(
+  unitId: string | null,
+  type: "work" | "rest",
+  startedAt: string,
+  endedAt: string
+) {
+  const user = await getCurrentUser();
+
+  await prisma.timerSession.create({
+    data: {
+      userId: user.id,
+      unitId: unitId || null,
+      type,
+      startedAt: new Date(startedAt),
+      endedAt: new Date(endedAt),
+    },
+  });
+
+  return { success: true };
+}

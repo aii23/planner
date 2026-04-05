@@ -16,6 +16,44 @@ interface TimerConfig {
   restDurationSec: number;
 }
 
+interface PersistedState {
+  state: TimerState;
+  startTimestamp: number | null;
+  elapsedBeforePause: number;
+  currentUnitId: string | null;
+}
+
+const STORAGE_KEY = "planer_timer";
+
+function loadPersisted(): PersistedState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PersistedState;
+  } catch {
+    return null;
+  }
+}
+
+function savePersisted(data: PersistedState) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // storage full or blocked
+  }
+}
+
+function clearPersisted() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 interface TimerReturn {
   state: TimerState;
   remainingSeconds: number;
@@ -25,20 +63,60 @@ interface TimerReturn {
   isRest: boolean;
   isRunning: boolean;
   isPaused: boolean;
-  start: () => void;
+  persistedUnitId: string | null;
+  start: (unitId?: string) => void;
   pause: () => void;
   resume: () => void;
   skipRest: () => void;
   reset: () => void;
   endWork: () => void;
+  setPersistedUnitId: (id: string | null) => void;
 }
 
 export function useTimer(config: TimerConfig): TimerReturn {
+  const [initialized, setInitialized] = useState(false);
   const [state, setState] = useState<TimerState>("IDLE");
   const [startTimestamp, setStartTimestamp] = useState<number | null>(null);
   const [elapsedBeforePause, setElapsedBeforePause] = useState(0);
   const [displayElapsed, setDisplayElapsed] = useState(0);
+  const [persistedUnitId, setPersistedUnitId] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Restore from localStorage on mount
+  useEffect(() => {
+    const saved = loadPersisted();
+    if (saved && saved.state !== "IDLE") {
+      setState(saved.state);
+      setStartTimestamp(saved.startTimestamp);
+      setElapsedBeforePause(saved.elapsedBeforePause);
+      setPersistedUnitId(saved.currentUnitId);
+
+      if (saved.startTimestamp) {
+        const elapsed =
+          saved.elapsedBeforePause +
+          Math.floor((Date.now() - saved.startTimestamp) / 1000);
+        setDisplayElapsed(elapsed);
+      } else {
+        setDisplayElapsed(saved.elapsedBeforePause);
+      }
+    }
+    setInitialized(true);
+  }, []);
+
+  // Persist to localStorage on state changes
+  useEffect(() => {
+    if (!initialized) return;
+    if (state === "IDLE") {
+      clearPersisted();
+    } else {
+      savePersisted({
+        state,
+        startTimestamp,
+        elapsedBeforePause,
+        currentUnitId: persistedUnitId,
+      });
+    }
+  }, [initialized, state, startTimestamp, elapsedBeforePause, persistedUnitId]);
 
   const isWork = state === "WORK_RUNNING" || state === "WORK_PAUSED" || state === "WORK_ENDED";
   const isRest = state === "REST_RUNNING" || state === "REST_PAUSED" || state === "REST_ENDED";
@@ -92,13 +170,17 @@ export function useTimer(config: TimerConfig): TimerReturn {
     return clearTick;
   }, [isRunning, state, calcElapsed, clearTick, config.workDurationSec, config.restDurationSec]);
 
-  const start = useCallback(() => {
-    if (state !== "IDLE") return;
-    setState("WORK_RUNNING");
-    setStartTimestamp(Date.now());
-    setElapsedBeforePause(0);
-    setDisplayElapsed(0);
-  }, [state]);
+  const start = useCallback(
+    (unitId?: string) => {
+      if (state !== "IDLE") return;
+      setState("WORK_RUNNING");
+      setStartTimestamp(Date.now());
+      setElapsedBeforePause(0);
+      setDisplayElapsed(0);
+      if (unitId !== undefined) setPersistedUnitId(unitId);
+    },
+    [state]
+  );
 
   const pause = useCallback(() => {
     if (state === "WORK_RUNNING") {
@@ -137,6 +219,7 @@ export function useTimer(config: TimerConfig): TimerReturn {
       setStartTimestamp(null);
       setElapsedBeforePause(0);
       setDisplayElapsed(0);
+      setPersistedUnitId(null);
     }
   }, [state, clearTick]);
 
@@ -146,6 +229,7 @@ export function useTimer(config: TimerConfig): TimerReturn {
     setStartTimestamp(null);
     setElapsedBeforePause(0);
     setDisplayElapsed(0);
+    setPersistedUnitId(null);
   }, [clearTick]);
 
   const remainingSeconds = Math.max(0, totalDurationSec - displayElapsed);
@@ -159,11 +243,13 @@ export function useTimer(config: TimerConfig): TimerReturn {
     isRest,
     isRunning,
     isPaused,
+    persistedUnitId,
     start,
     pause,
     resume,
     skipRest,
     reset,
     endWork,
+    setPersistedUnitId,
   };
 }

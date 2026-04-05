@@ -4,22 +4,18 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useTimer } from "@/hooks/use-timer";
+import { useNotifications } from "@/hooks/use-notifications";
 import { TimerDisplay } from "@/components/timer-display";
 import { TimerControls } from "@/components/timer-controls";
 import { UnitQueue, type QueueItem } from "@/components/unit-queue";
+import { CheckpointPopup } from "@/components/checkpoint-popup";
 import {
   getTodayQueue,
   completeCurrentUnit,
   skipCurrentUnit,
   quickAddUnit,
+  saveTimerSession,
 } from "@/app/actions/timer";
 
 interface TimerViewProps {
@@ -39,12 +35,26 @@ export function TimerView({
   const [quickAddLabel, setQuickAddLabel] = useState("");
   const [quickAddTaskId, setQuickAddTaskId] = useState("");
   const [quickAddPending, setQuickAddPending] = useState(false);
+  const [checkpointVisible, setCheckpointVisible] = useState(false);
+  const [checkpointMinute, setCheckpointMinute] = useState(0);
+  const lastCheckpointRef = useRef(0);
   const autoTransitioned = useRef(false);
+  const sessionStartRef = useRef<string | null>(null);
+  const prevStateRef = useRef<string>("IDLE");
+
+  const { requestPermission, notify, playChime } = useNotifications();
 
   const timer = useTimer({
     workDurationSec: workDurationMin * 60,
     restDurationSec: restDurationMin * 60,
   });
+
+  // Restore currentUnitId from persisted timer state
+  useEffect(() => {
+    if (timer.persistedUnitId && !currentUnitId) {
+      setCurrentUnitId(timer.persistedUnitId);
+    }
+  }, [timer.persistedUnitId, currentUnitId]);
 
   const refreshQueue = useCallback(async () => {
     const updated = await getTodayQueue();
@@ -73,6 +83,81 @@ export function TimerView({
     ? { label: currentUnit.label, task: currentUnit.task }
     : null;
 
+  // Request notification permission on first interaction
+  useEffect(() => {
+    requestPermission();
+  }, [requestPermission]);
+
+  // 20-min checkpoint detection
+  useEffect(() => {
+    if (timer.state !== "WORK_RUNNING") return;
+    const elapsedMin = Math.floor(timer.elapsedSeconds / 60);
+    const checkpointAt = Math.floor(elapsedMin / 20) * 20;
+    if (checkpointAt > 0 && checkpointAt > lastCheckpointRef.current) {
+      lastCheckpointRef.current = checkpointAt;
+      setCheckpointMinute(checkpointAt);
+      setCheckpointVisible(true);
+      playChime();
+    }
+  }, [timer.state, timer.elapsedSeconds, playChime]);
+
+  // Notifications + session saving on state transitions
+  useEffect(() => {
+    const prev = prevStateRef.current;
+    const curr = timer.state;
+    prevStateRef.current = curr;
+
+    if (prev === curr) return;
+
+    // Work started — track session start
+    if (curr === "WORK_RUNNING" && prev === "IDLE") {
+      sessionStartRef.current = new Date().toISOString();
+      lastCheckpointRef.current = 0;
+    }
+
+    // Work ended — notify + save session
+    if (curr === "WORK_ENDED" && prev === "WORK_RUNNING") {
+      playChime();
+      notify("Work session complete!", "Time for a break.");
+
+      if (sessionStartRef.current) {
+        saveTimerSession(
+          currentUnitId,
+          "work",
+          sessionStartRef.current,
+          new Date().toISOString()
+        );
+      }
+      sessionStartRef.current = new Date().toISOString();
+    }
+
+    // Rest started
+    if (curr === "REST_RUNNING" && (prev === "WORK_ENDED" || prev === "WORK_RUNNING")) {
+      if (!sessionStartRef.current) {
+        sessionStartRef.current = new Date().toISOString();
+      }
+    }
+
+    // Rest ended — notify + save session
+    if (curr === "REST_ENDED" && prev === "REST_RUNNING") {
+      playChime();
+      notify("Rest is over!", "Ready for the next work session?");
+
+      if (sessionStartRef.current) {
+        saveTimerSession(null, "rest", sessionStartRef.current, new Date().toISOString());
+      }
+      sessionStartRef.current = null;
+    }
+
+    // Skip rest — save partial rest session
+    if (curr === "IDLE" && (prev === "REST_RUNNING" || prev === "REST_PAUSED" || prev === "REST_ENDED" || prev === "WORK_ENDED")) {
+      if (sessionStartRef.current && (prev === "REST_RUNNING" || prev === "REST_PAUSED")) {
+        saveTimerSession(null, "rest", sessionStartRef.current, new Date().toISOString());
+      }
+      sessionStartRef.current = null;
+    }
+  }, [timer.state, playChime, notify, currentUnitId]);
+
   // Auto transition: WORK_ENDED → REST_RUNNING
   useEffect(() => {
     if (timer.state === "WORK_ENDED" && !autoTransitioned.current) {
@@ -88,8 +173,10 @@ export function TimerView({
     const next = getNextUnit();
     if (next) {
       setCurrentUnitId(next.unit.id);
+      timer.start(next.unit.id);
+    } else {
+      timer.start();
     }
-    timer.start();
   }
 
   async function handleCompleteUnit() {
@@ -105,7 +192,9 @@ export function TimerView({
     );
 
     const next = getNextUnit(currentUnitId);
-    setCurrentUnitId(next?.unit.id ?? null);
+    const nextId = next?.unit.id ?? null;
+    setCurrentUnitId(nextId);
+    timer.setPersistedUnitId(nextId);
 
     await refreshQueue();
   }
@@ -123,7 +212,9 @@ export function TimerView({
 
     if (unitId === currentUnitId) {
       const next = getNextUnit(unitId);
-      setCurrentUnitId(next?.unit.id ?? null);
+      const nextId = next?.unit.id ?? null;
+      setCurrentUnitId(nextId);
+      timer.setPersistedUnitId(nextId);
     }
 
     await refreshQueue();
@@ -142,10 +233,21 @@ export function TimerView({
 
     if (unitId === currentUnitId) {
       const next = getNextUnit(unitId);
-      setCurrentUnitId(next?.unit.id ?? null);
+      const nextId = next?.unit.id ?? null;
+      setCurrentUnitId(nextId);
+      timer.setPersistedUnitId(nextId);
     }
 
     await refreshQueue();
+  }
+
+  function handleCheckpointComplete() {
+    setCheckpointVisible(false);
+    handleCompleteUnit();
+  }
+
+  function handleCheckpointContinue() {
+    setCheckpointVisible(false);
   }
 
   function handleEndWork() {
@@ -180,10 +282,11 @@ export function TimerView({
   });
 
   const availableTasks = Array.from(
-    new Map(
-      queue.map((q) => [q.unit.task.id, q.unit.task])
-    ).values()
+    new Map(queue.map((q) => [q.unit.task.id, q.unit.task])).values()
   );
+
+  const checkpointLabel =
+    currentUnit?.label || currentUnit?.task.title || "this unit";
 
   return (
     <div className="flex gap-8">
@@ -212,7 +315,8 @@ export function TimerView({
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="h-4 w-4" />
             <span>
-              ~{remaining} {remaining === 1 ? "unit" : "units"} left, done by {etaStr}
+              ~{remaining} {remaining === 1 ? "unit" : "units"} left, done by{" "}
+              {etaStr}
             </span>
           </div>
         )}
@@ -241,7 +345,9 @@ export function TimerView({
               <Input
                 placeholder="Label (optional)"
                 value={quickAddLabel}
-                onChange={(e) => setQuickAddLabel((e.target as HTMLInputElement).value)}
+                onChange={(e) =>
+                  setQuickAddLabel((e.target as HTMLInputElement).value)
+                }
                 className="h-7 text-xs"
                 autoFocus
               />
@@ -285,6 +391,14 @@ export function TimerView({
           )}
         </div>
       </aside>
+
+      <CheckpointPopup
+        visible={checkpointVisible}
+        minutesMark={checkpointMinute}
+        unitLabel={checkpointLabel}
+        onComplete={handleCheckpointComplete}
+        onContinue={handleCheckpointContinue}
+      />
     </div>
   );
 }
