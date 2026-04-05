@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2, ArrowRight } from "lucide-react";
+import { Trash2, ArrowRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { EditTaskDialog } from "@/components/edit-task-dialog";
+import { UnitList } from "@/components/unit-list";
 import { updateTaskStatus, deleteTask } from "@/app/actions/tasks";
 import { cn } from "@/lib/utils";
 import type { TaskStatus } from "@/src/generated/prisma/client";
@@ -20,6 +21,16 @@ const STATUS_CONFIG: Record<
   done: { label: "Done", variant: "secondary", next: null },
 };
 
+export interface UnitData {
+  id: string;
+  label: string | null;
+  status: string;
+  actualDurationSeconds: number | null;
+  actualUnitsConsumed: number | null;
+  completedAt: Date | null;
+  createdAt: Date;
+}
+
 export interface TaskWithUnits {
   id: string;
   projectId: string;
@@ -31,7 +42,7 @@ export interface TaskWithUnits {
   createdAt: Date;
   completedAt: Date | null;
   _count: { units: number };
-  units: { status: string }[];
+  units: UnitData[];
 }
 
 interface TaskRowProps {
@@ -42,6 +53,7 @@ interface TaskRowProps {
 export function TaskRow({ task, projectColor }: TaskRowProps) {
   const [transitioning, setTransitioning] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [unitsExpanded, setUnitsExpanded] = useState(false);
 
   const completedUnitCount = task.units.filter(
     (u) => u.status === "completed"
@@ -70,68 +82,87 @@ export function TaskRow({ task, projectColor }: TaskRowProps) {
   }
 
   return (
-    <div
-      className={cn(
-        "group flex items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-muted/50",
-        isDone && "opacity-60"
-      )}
-    >
+    <div className={cn(isDone && "opacity-60")}>
       <div
-        className="h-2 w-2 rounded-full shrink-0"
-        style={{ backgroundColor: projectColor }}
-      />
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span
+        className="group flex items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-muted/50"
+      >
+        <button
+          onClick={() => setUnitsExpanded(!unitsExpanded)}
+          className="shrink-0 p-0.5 -ml-1 rounded hover:bg-muted"
+          title={unitsExpanded ? "Collapse units" : "Expand units"}
+        >
+          <ChevronDown
             className={cn(
-              "text-sm font-medium truncate",
-              isDone && "line-through"
+              "h-3 w-3 text-muted-foreground transition-transform",
+              unitsExpanded && "rotate-180"
             )}
-          >
-            {task.title}
-          </span>
-          <Badge variant={config.variant} className="text-[10px] shrink-0">
-            {config.label}
-          </Badge>
-        </div>
+          />
+        </button>
 
-        <div className="flex items-center gap-3 mt-1">
-          <div className="w-24">
-            <Progress value={progressPercent} className="h-1.5" />
+        <div
+          className="h-2 w-2 rounded-full shrink-0"
+          style={{ backgroundColor: projectColor }}
+        />
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "text-sm font-medium truncate",
+                isDone && "line-through"
+              )}
+            >
+              {task.title}
+            </span>
+            <Badge variant={config.variant} className="text-[10px] shrink-0">
+              {config.label}
+            </Badge>
           </div>
-          <span className="text-[10px] text-muted-foreground tabular-nums">
-            {completedUnitCount}/{task.estimatedUnits} units
-          </span>
-        </div>
-      </div>
 
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        {config.next && (
+          <div className="flex items-center gap-3 mt-1">
+            <div className="w-24">
+              <Progress value={progressPercent} className="h-1.5" />
+            </div>
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {completedUnitCount}/{task.estimatedUnits} units
+              {totalUnits > 0 && ` (${totalUnits} created)`}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          {config.next && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={handleAdvanceStatus}
+              disabled={transitioning}
+              title={`Move to ${STATUS_CONFIG[config.next].label}`}
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          )}
+
+          <EditTaskDialog task={task} />
+
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={handleAdvanceStatus}
-            disabled={transitioning}
-            title={`Move to ${STATUS_CONFIG[config.next].label}`}
+            onClick={handleDelete}
+            disabled={deleting}
+            title="Delete task"
+            className="text-destructive/70 hover:text-destructive"
           >
-            <ArrowRight className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
-        )}
-
-        <EditTaskDialog task={task} />
-
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={handleDelete}
-          disabled={deleting}
-          title="Delete task"
-          className="text-destructive/70 hover:text-destructive"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        </div>
       </div>
+
+      {unitsExpanded && (
+        <div className="ml-8 pl-3 border-l-2 border-border/50 mb-2">
+          <UnitList units={task.units} taskId={task.id} />
+        </div>
+      )}
     </div>
   );
 }

@@ -24,7 +24,18 @@ export async function getProjects(includeArchived = false) {
         orderBy: [{ status: "asc" }, { createdAt: "desc" }],
         include: {
           _count: { select: { units: true } },
-          units: { select: { status: true } },
+          units: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              label: true,
+              status: true,
+              actualDurationSeconds: true,
+              actualUnitsConsumed: true,
+              completedAt: true,
+              createdAt: true,
+            },
+          },
         },
       },
     },
