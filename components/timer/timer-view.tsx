@@ -359,8 +359,8 @@ export function TimerView({
     currentUnit?.label || currentUnit?.task?.title || "this unit";
 
   return (
-    <div className="flex gap-8">
-      <div className="flex-1 flex flex-col items-center gap-8 pt-4">
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col items-center gap-8 pt-4">
         <TimerDisplay
           remainingSeconds={timer.remainingSeconds}
           totalDurationSec={timer.totalDurationSec}
@@ -392,7 +392,7 @@ export function TimerView({
         )}
       </div>
 
-      <aside className="w-72 shrink-0 rounded-lg border border-border bg-card p-4 overflow-y-auto max-h-[calc(100vh-200px)]">
+      <div className="rounded-lg border border-border bg-card p-4">
         <div className="mb-3 pb-3 border-b border-border">
           <DailyCheckin queue={queue} onReorderApplied={refreshQueue} />
         </div>
@@ -465,7 +465,7 @@ export function TimerView({
             </div>
           )}
         </div>
-      </aside>
+      </div>
 
       <CheckpointPopup
         visible={checkpointVisible}
