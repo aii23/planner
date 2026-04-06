@@ -128,3 +128,41 @@ export async function deleteUnit(id: string) {
   revalidatePath("/backlog");
   return { success: true };
 }
+
+
+export async function getActiveUnits() {
+  const user = await getCurrentUser();
+
+  const units = await prisma.unit.findMany({
+    where: {
+      userId: user.id,
+      status: { in: ["pending", "scheduled", "in_progress"] },
+    },
+    orderBy: [{ status: "asc" }, { createdAt: "asc" }],
+    include: {
+      task: {
+        select: {
+          id: true,
+          title: true,
+          project: { select: { id: true, name: true, color: true } },
+        },
+      },
+      scheduledUnits: {
+        take: 1,
+        include: {
+          dailyPlan: { select: { date: true } },
+        },
+        orderBy: { dailyPlan: { date: "asc" } },
+      },
+    },
+  });
+
+  return units.map((u) => ({
+    id: u.id,
+    label: u.label,
+    status: u.status,
+    createdAt: u.createdAt,
+    task: u.task,
+    scheduledDate: u.scheduledUnits[0]?.dailyPlan.date ?? null,
+  }));
+}

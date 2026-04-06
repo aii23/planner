@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDown, ArrowUp, Check } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, RefreshCw, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AISection, AITriggerButton } from "./ai-section";
 import { getDailyCheckin, applyDailyReorder } from "@/app/actions/ai";
@@ -23,12 +23,9 @@ interface QueueItem {
 
 interface CheckinData {
   summary: string;
-  suggestedOrder: Array<{
-    unitId: string;
-    label: string;
-    project: string;
-  }>;
+  suggestedOrder: Array<{ unitId: string; label: string; project: string }>;
   reasoning: string;
+  skipRecommendation?: string;
   warnings: string[];
 }
 
@@ -44,21 +41,24 @@ export function DailyCheckin({ queue, onReorderApplied }: DailyCheckinProps) {
   const [visible, setVisible] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [fromCache, setFromCache] = useState(false);
 
   const activeUnits = queue.filter(
     (q) => q.unit.status !== "completed" && q.unit.status !== "skipped"
   );
 
-  async function handleCheckin() {
+  async function load(force = false) {
     setLoading(true);
     setError(null);
     setVisible(true);
     setApplied(false);
 
-    const result = await getDailyCheckin();
+    const result = await getDailyCheckin(force);
 
     if (result.ok) {
-      setCheckin(result.data);
+      const { ok: _, ...data } = result;
+      setCheckin(data as CheckinData);
+      setFromCache(!force);
     } else {
       setError(result.error);
     }
@@ -68,7 +68,6 @@ export function DailyCheckin({ queue, onReorderApplied }: DailyCheckinProps) {
   async function handleApplyOrder() {
     if (!checkin) return;
     setApplying(true);
-
     const orderedIds = checkin.suggestedOrder.map((u) => u.unitId);
     await applyDailyReorder(orderedIds);
     setApplied(true);
@@ -92,21 +91,28 @@ export function DailyCheckin({ queue, onReorderApplied }: DailyCheckinProps) {
   return (
     <div className="space-y-3">
       <AITriggerButton
-        onClick={handleCheckin}
+        onClick={() => load(false)}
         loading={loading}
         label="Get daily briefing"
         disabled={activeUnits.length === 0}
       />
 
-      <AISection
-        loading={loading}
-        error={error}
-        visible={visible}
-        onDismiss={handleDismiss}
-      >
+      <AISection loading={loading} error={error} visible={visible} onDismiss={handleDismiss}>
         {checkin && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-700">{checkin.summary}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm text-gray-700 flex-1">{checkin.summary}</p>
+              {fromCache && (
+                <button
+                  onClick={() => load(true)}
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  title="Regenerate briefing"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Re-run
+                </button>
+              )}
+            </div>
 
             {checkin.warnings.length > 0 && (
               <div className="space-y-1">
@@ -115,6 +121,16 @@ export function DailyCheckin({ queue, onReorderApplied }: DailyCheckinProps) {
                     ⚠ {w}
                   </p>
                 ))}
+              </div>
+            )}
+
+            {checkin.skipRecommendation && (
+              <div className="flex items-start gap-2 rounded-md bg-muted/40 border border-border px-3 py-2">
+                <SkipForward className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">If short on time</p>
+                  <p className="text-xs text-foreground">{checkin.skipRecommendation}</p>
+                </div>
               </div>
             )}
 
@@ -127,18 +143,14 @@ export function DailyCheckin({ queue, onReorderApplied }: DailyCheckinProps) {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[10px] font-medium text-gray-500 uppercase mb-1.5">
-                      Current
-                    </p>
+                    <p className="text-[10px] font-medium text-gray-500 uppercase mb-1.5">Current</p>
                     <div className="space-y-1">
                       {activeUnits.map((q, i) => (
                         <div
                           key={q.unit.id}
                           className="flex items-center gap-2 rounded border border-gray-200 bg-white px-2 py-1.5"
                         >
-                          <span className="text-[10px] text-gray-400 w-4 tabular-nums">
-                            {i + 1}
-                          </span>
+                          <span className="text-[10px] text-gray-400 w-4 tabular-nums">{i + 1}</span>
                           <span
                             className="h-2 w-2 rounded-full shrink-0"
                             style={{ backgroundColor: q.unit.task?.project.color ?? "#94a3b8" }}
@@ -152,9 +164,7 @@ export function DailyCheckin({ queue, onReorderApplied }: DailyCheckinProps) {
                   </div>
 
                   <div>
-                    <p className="text-[10px] font-medium text-purple-600 uppercase mb-1.5">
-                      Suggested
-                    </p>
+                    <p className="text-[10px] font-medium text-purple-600 uppercase mb-1.5">Suggested</p>
                     <div className="space-y-1">
                       {checkin.suggestedOrder.map((u, i) => {
                         const original = activeUnits.find((q) => q.unit.id === u.unitId);
@@ -164,28 +174,17 @@ export function DailyCheckin({ queue, onReorderApplied }: DailyCheckinProps) {
                           <div
                             key={u.unitId}
                             className={`flex items-center gap-2 rounded border px-2 py-1.5 ${
-                              moved
-                                ? "border-purple-200 bg-purple-50"
-                                : "border-gray-200 bg-white"
+                              moved ? "border-purple-200 bg-purple-50" : "border-gray-200 bg-white"
                             }`}
                           >
-                            <span className="text-[10px] text-gray-400 w-4 tabular-nums">
-                              {i + 1}
-                            </span>
+                            <span className="text-[10px] text-gray-400 w-4 tabular-nums">{i + 1}</span>
                             <span
                               className="h-2 w-2 rounded-full shrink-0"
-                              style={{
-                                backgroundColor:
-                                  original?.unit.task?.project.color ?? "#888",
-                              }}
+                              style={{ backgroundColor: original?.unit.task?.project.color ?? "#888" }}
                             />
                             <span className="text-xs truncate flex-1">{u.label}</span>
-                            {moved && originalIdx > i && (
-                              <ArrowUp className="h-3 w-3 text-emerald-500" />
-                            )}
-                            {moved && originalIdx < i && (
-                              <ArrowDown className="h-3 w-3 text-amber-500" />
-                            )}
+                            {moved && originalIdx > i && <ArrowUp className="h-3 w-3 text-emerald-500" />}
+                            {moved && originalIdx < i && <ArrowDown className="h-3 w-3 text-amber-500" />}
                           </div>
                         );
                       })}
@@ -203,12 +202,7 @@ export function DailyCheckin({ queue, onReorderApplied }: DailyCheckinProps) {
                     <Check className="h-3.5 w-3.5" />
                     {applying ? "Applying..." : "Apply suggested order"}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleDismiss}
-                    className="text-gray-600"
-                  >
+                  <Button variant="ghost" size="sm" onClick={handleDismiss} className="text-gray-600">
                     Keep my order
                   </Button>
                 </div>

@@ -5,42 +5,27 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser, getUserTimezone } from "@/lib/user";
 import { toDateOnlyISOInTz, getMondayInTz } from "@/lib/date-utils";
 
-export async function getTodayQueue() {
-  const user = await getCurrentUser();
-  const tz = await getUserTimezone();
-  const now = new Date();
-  const todayISO = toDateOnlyISOInTz(now, tz);
-  const monday = getMondayInTz(now, tz);
-  const mondayISO = monday.toISOString().slice(0, 10);
-
-  const dailyPlan = await prisma.dailyPlan.findFirst({
-    where: {
-      userId: user.id,
-      date: new Date(todayISO + "T00:00:00.000Z"),
-      weeklyPlan: {
-        weekStartDate: new Date(mondayISO + "T00:00:00.000Z"),
-      },
-    },
+async function fetchDayQueue(userId: string, dateISO: string) {
+  const scheduledUnitInclude = {
+    orderBy: { sortOrder: "asc" } as const,
     include: {
-      scheduledUnits: {
-        orderBy: { sortOrder: "asc" },
+      unit: {
         include: {
-          unit: {
-            include: {
-              task: {
-                select: {
-                  id: true,
-                  title: true,
-                  project: {
-                    select: { id: true, name: true, color: true },
-                  },
-                },
-              },
+          task: {
+            select: {
+              id: true,
+              title: true,
+              project: { select: { id: true, name: true, color: true } },
             },
           },
         },
       },
     },
+  };
+
+  const dailyPlan = await prisma.dailyPlan.findFirst({
+    where: { userId, date: new Date(dateISO + "T00:00:00.000Z") },
+    include: { scheduledUnits: scheduledUnitInclude },
   });
 
   if (!dailyPlan) return [];
@@ -55,6 +40,33 @@ export async function getTodayQueue() {
       task: su.unit.task,
     },
   }));
+}
+
+export async function getTodayQueue() {
+  const user = await getCurrentUser();
+  const tz = await getUserTimezone();
+  const now = new Date();
+  const todayISO = toDateOnlyISOInTz(now, tz);
+  return fetchDayQueue(user.id, todayISO);
+}
+
+export async function getTodayAndTomorrowQueues() {
+  const user = await getCurrentUser();
+  const tz = await getUserTimezone();
+  const now = new Date();
+  const todayISO = toDateOnlyISOInTz(now, tz);
+
+  // Tomorrow = today + 1 day in user tz
+  const todayDate = new Date(todayISO + "T12:00:00.000Z");
+  todayDate.setUTCDate(todayDate.getUTCDate() + 1);
+  const tomorrowISO = todayDate.toISOString().slice(0, 10);
+
+  const [todayQueue, tomorrowQueue] = await Promise.all([
+    fetchDayQueue(user.id, todayISO),
+    fetchDayQueue(user.id, tomorrowISO),
+  ]);
+
+  return { todayQueue, tomorrowQueue };
 }
 
 export async function getUserPreferences() {

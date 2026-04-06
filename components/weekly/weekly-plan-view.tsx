@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useCallback, useTransition } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { Target, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { WeekSelector } from "@/components/weekly/week-selector";
-import { DayColumn, type DailyPlanData } from "@/components/weekly/day-column";
+import { DayColumn } from "@/components/weekly/day-column";
 import { SchedulingBacklog } from "@/components/weekly/scheduling-backlog";
 import {
   getMonday,
@@ -19,34 +19,12 @@ import {
   updateWeeklyTarget,
 } from "@/app/actions/weekly-plan";
 import { WeeklyPlanReview } from "@/components/ai/weekly-plan-review";
-
-interface BacklogUnitItem {
-  id: string;
-  label: string | null;
-  task: {
-    id: string;
-    title: string;
-    project: { id: string; name: string; color: string };
-  } | null;
-}
-
-interface WeeklyPlanData {
-  id: string;
-  targetUnits: number;
-  status: string;
-  dailyPlans: DailyPlanData[];
-}
-
-interface CarryForwardItem {
-  id: string;
-  label: string | null;
-  status: string;
-  task: {
-    id: string;
-    title: string;
-    project: { id: string; name: string; color: string };
-  } | null;
-}
+import {
+  usePlannerStore,
+  type BacklogUnitItem,
+  type WeeklyPlanData,
+  type CarryForwardItem,
+} from "@/store/planner-store";
 
 interface WeeklyPlanViewProps {
   initialPlan: WeeklyPlanData;
@@ -61,70 +39,63 @@ export function WeeklyPlanView({
   initialBacklog,
   initialCarryForward,
 }: WeeklyPlanViewProps) {
-  const [monday, setMonday] = useState(() => new Date(initialMonday + "T00:00:00"));
-  const [plan, setPlan] = useState<WeeklyPlanData>(initialPlan);
-  const [backlog, setBacklog] = useState<BacklogUnitItem[]>(initialBacklog);
-  const [carryForward, setCarryForward] = useState<CarryForwardItem[]>(initialCarryForward);
-  const [weeklyTarget, setWeeklyTarget] = useState(initialPlan.targetUnits);
-  const [isPending, startTransition] = useTransition();
-  const [savingTarget, setSavingTarget] = useState(false);
+  const {
+    weeklyPlan,
+    weeklyMonday,
+    backlog,
+    carryForward,
+    setWeeklyData,
+    optimisticSetWeeklyTarget,
+  } = usePlannerStore();
 
-  const refresh = useCallback(
-    (newMonday?: Date) => {
-      const m = newMonday ?? monday;
-      startTransition(async () => {
-        const [newPlan, newBacklog, newCarry] = await Promise.all([
-          getOrCreateWeeklyPlan(toDateOnlyISO(m)),
-          getUnscheduledUnits(),
-          getCarryForwardUnits(toDateOnlyISO(m)),
-        ]);
-        setPlan(newPlan);
-        setBacklog(newBacklog);
-        setCarryForward(newCarry);
-        if (newMonday) {
-          setMonday(m);
-          setWeeklyTarget(newPlan.targetUnits);
-        }
-      });
-    },
-    [monday]
-  );
+  // Hydrate store with server-fetched initial data on mount (once)
+  useEffect(() => {
+    setWeeklyData(initialPlan, initialMonday, initialBacklog, initialCarryForward);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function handlePrev() {
-    refresh(addWeeks(monday, -1));
+  const plan = weeklyPlan ?? initialPlan;
+  const monday = weeklyMonday ? new Date(weeklyMonday + "T00:00:00") : new Date(initialMonday + "T00:00:00");
+
+  const [loading, setLoading] = useState(false);
+
+  const loadWeek = useCallback(async (newMonday: Date) => {
+    setLoading(true);
+    const mondayISO = toDateOnlyISO(newMonday);
+    const [newPlan, newBacklog, newCarry] = await Promise.all([
+      getOrCreateWeeklyPlan(mondayISO),
+      getUnscheduledUnits(),
+      getCarryForwardUnits(mondayISO),
+    ]);
+    setWeeklyData(newPlan, mondayISO, newBacklog, newCarry);
+    setLoading(false);
+  }, [setWeeklyData]);
+
+  function handlePrev() { loadWeek(addWeeks(monday, -1)); }
+  function handleNext() { loadWeek(addWeeks(monday, 1)); }
+  function handleToday() { loadWeek(getMonday(new Date())); }
+
+  // Soft refresh backlog + plan without navigating weeks
+  const refreshCurrentWeek = useCallback(async () => {
+    if (!weeklyMonday) return;
+    const [newPlan, newBacklog, newCarry] = await Promise.all([
+      getOrCreateWeeklyPlan(weeklyMonday),
+      getUnscheduledUnits(),
+      getCarryForwardUnits(weeklyMonday),
+    ]);
+    setWeeklyData(newPlan, weeklyMonday, newBacklog, newCarry);
+  }, [weeklyMonday, setWeeklyData]);
+
+  function handleWeeklyTargetChange(value: number) {
+    optimisticSetWeeklyTarget(value);
+    updateWeeklyTarget(plan.id, value).catch(() => {
+      // Rollback on error
+      optimisticSetWeeklyTarget(plan.targetUnits);
+    });
   }
 
-  function handleNext() {
-    refresh(addWeeks(monday, 1));
-  }
-
-  function handleToday() {
-    refresh(getMonday(new Date()));
-  }
-
-  function handleSchedulingChanged() {
-    refresh();
-  }
-
-  function handleOptimisticAdd(unit: BacklogUnitItem) {
-    setBacklog((prev) => [...prev, unit]);
-  }
-
-  async function handleWeeklyTargetBlur() {
-    if (weeklyTarget === plan.targetUnits) return;
-    setSavingTarget(true);
-    await updateWeeklyTarget(plan.id, weeklyTarget);
-    setSavingTarget(false);
-  }
-
-  const dailyTargetSum = plan.dailyPlans.reduce(
-    (sum, d) => sum + d.targetUnits,
-    0
-  );
-  const totalScheduled = plan.dailyPlans.reduce(
-    (sum, d) => sum + d.scheduledUnits.length,
-    0
-  );
+  const dailyTargetSum = plan.dailyPlans.reduce((sum, d) => sum + d.targetUnits, 0);
+  const totalScheduled = plan.dailyPlans.reduce((sum, d) => sum + d.scheduledUnits.length, 0);
 
   const dayOptions = plan.dailyPlans.map((d) => ({
     id: d.id,
@@ -154,33 +125,31 @@ export function WeeklyPlanView({
               type="number"
               min={0}
               max={999}
-              value={weeklyTarget}
-              onChange={(e) =>
-                setWeeklyTarget(
-                  parseInt((e.target as HTMLInputElement).value, 10) || 0
-                )
-              }
-              onBlur={handleWeeklyTargetBlur}
-              className={`h-8 w-16 text-sm text-center tabular-nums ${savingTarget ? "opacity-50" : ""}`}
+              value={plan.targetUnits}
+              onChange={(e) => {
+                const v = parseInt((e.target as HTMLInputElement).value, 10);
+                if (!isNaN(v)) handleWeeklyTargetChange(v);
+              }}
+              className="h-8 w-16 text-sm text-center tabular-nums"
             />
           </div>
 
           <div className="flex items-center gap-2 text-sm">
             <Badge
-              variant={dailyTargetSum === weeklyTarget ? "default" : "outline"}
+              variant={dailyTargetSum === plan.targetUnits ? "default" : "outline"}
               className="tabular-nums"
             >
-              {dailyTargetSum}/{weeklyTarget}
+              {dailyTargetSum}/{plan.targetUnits}
             </Badge>
             <span className="text-muted-foreground text-xs">daily sum</span>
           </div>
 
           <div className="flex items-center gap-2 text-sm">
             <Badge
-              variant={totalScheduled >= weeklyTarget ? "default" : "secondary"}
+              variant={totalScheduled >= plan.targetUnits ? "default" : "secondary"}
               className="tabular-nums"
             >
-              {totalScheduled}/{weeklyTarget}
+              {totalScheduled}/{plan.targetUnits}
             </Badge>
             <span className="text-muted-foreground text-xs">scheduled</span>
           </div>
@@ -215,23 +184,22 @@ export function WeeklyPlanView({
         </div>
       )}
 
-      <div className={`flex gap-4 ${isPending ? "opacity-60 pointer-events-none" : ""}`}>
+      <div className={`flex gap-4 ${loading ? "opacity-60 pointer-events-none" : ""}`}>
         <aside className="w-56 shrink-0 rounded-lg border border-border bg-card p-3 overflow-y-auto max-h-[calc(100vh-220px)]">
           <SchedulingBacklog
             units={backlog}
             days={dayOptions}
-            onScheduled={handleSchedulingChanged}
-            onOptimisticAdd={handleOptimisticAdd}
+            onScheduled={refreshCurrentWeek}
           />
         </aside>
 
-        <div className="flex-1 min-w-0 overflow-x-auto snap-x snap-mandatory scroll-smooth">
+        <div className="flex-1 min-w-0 overflow-x-auto">
           <div className="grid grid-cols-2 gap-3 min-w-0" style={{ gridAutoRows: "min-content" }}>
             {plan.dailyPlans.map((daily) => (
               <DayColumn
                 key={daily.id}
                 daily={daily}
-                onChanged={handleSchedulingChanged}
+                currentMonday={toDateOnlyISO(monday)}
               />
             ))}
           </div>

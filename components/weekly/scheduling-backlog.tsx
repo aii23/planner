@@ -7,16 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { scheduleUnit, createQuickUnit } from "@/app/actions/weekly-plan";
 import { getDayName, formatDateShort } from "@/lib/date-utils";
-
-export interface BacklogUnitItem {
-  id: string;
-  label: string | null;
-  task: {
-    id: string;
-    title: string;
-    project: { id: string; name: string; color: string };
-  } | null;
-}
+import { usePlannerStore, type BacklogUnitItem } from "@/store/planner-store";
 
 interface DayOption {
   id: string;
@@ -29,7 +20,6 @@ interface SchedulingBacklogProps {
   units: BacklogUnitItem[];
   days: DayOption[];
   onScheduled: () => void;
-  onOptimisticAdd: (unit: BacklogUnitItem) => void;
 }
 
 interface ProjectGroup {
@@ -43,7 +33,6 @@ interface TaskGroup {
   units: BacklogUnitItem[];
 }
 
-const STANDALONE_KEY = "__standalone__";
 const STANDALONE_COLOR = "#94a3b8";
 
 function groupByProjectAndTask(units: BacklogUnitItem[]): {
@@ -58,13 +47,11 @@ function groupByProjectAndTask(units: BacklogUnitItem[]): {
       standalone.push(unit);
       continue;
     }
-
     const proj = unit.task.project;
     if (!projectMap.has(proj.id)) {
       projectMap.set(proj.id, { project: proj, tasks: [] });
     }
     const pg = projectMap.get(proj.id)!;
-
     let tg = pg.tasks.find((t) => t.taskId === unit.task!.id);
     if (!tg) {
       tg = { taskId: unit.task.id, taskTitle: unit.task.title, units: [] };
@@ -79,34 +66,31 @@ function groupByProjectAndTask(units: BacklogUnitItem[]): {
 function UnitAssignRow({
   unit,
   days,
-  onScheduled,
 }: {
   unit: BacklogUnitItem;
   days: DayOption[];
-  onScheduled: () => void;
 }) {
-  const [assigning, setAssigning] = useState(false);
+  const { optimisticScheduleUnit } = usePlannerStore();
   const [showDays, setShowDays] = useState(false);
 
-  async function handleAssign(dailyPlanId: string) {
-    setAssigning(true);
-    await scheduleUnit(unit.id, dailyPlanId);
-    setAssigning(false);
+  function handleAssign(dailyPlanId: string) {
     setShowDays(false);
-    onScheduled();
+    // Instant optimistic update
+    optimisticScheduleUnit(unit, dailyPlanId);
+    // Fire-and-forget
+    scheduleUnit(unit.id, dailyPlanId);
   }
 
   return (
     <div className="group">
       <div className="flex items-center gap-2 py-1 px-1.5 rounded hover:bg-muted/50">
         <span className="text-[11px] truncate flex-1">
-          {unit.label || "Untitled"}
+          {unit.label || unit.task?.title || "Untitled"}
         </span>
         <Button
           variant="ghost"
           size="icon-sm"
           onClick={() => setShowDays(!showDays)}
-          disabled={assigning}
           title="Assign to day"
           className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
         >
@@ -123,7 +107,6 @@ function UnitAssignRow({
               <button
                 key={day.id}
                 onClick={() => handleAssign(day.id)}
-                disabled={assigning}
                 className={`
                   rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors
                   ${full
@@ -143,13 +126,8 @@ function UnitAssignRow({
   );
 }
 
-function QuickAddUnit({
-  onCreated,
-  onOptimisticAdd,
-}: {
-  onCreated: () => void;
-  onOptimisticAdd: (unit: BacklogUnitItem) => void;
-}) {
+function QuickAddUnit({ onCreated }: { onCreated: () => void }) {
+  const { optimisticAddBacklogUnit } = usePlannerStore();
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -162,11 +140,8 @@ function QuickAddUnit({
       return;
     }
 
-    onOptimisticAdd({
-      id: `optimistic-${Date.now()}`,
-      label,
-      task: null,
-    });
+    const tempId = `optimistic-${Date.now()}`;
+    optimisticAddBacklogUnit({ id: tempId, label, task: null });
 
     if (inputRef.current) inputRef.current.value = "";
     setExpanded(false);
@@ -174,6 +149,7 @@ function QuickAddUnit({
 
     createQuickUnit(label).then((result) => {
       if (result?.error) setError(result.error);
+      // Refresh to replace temp ID with real one
       onCreated();
     });
   }
@@ -192,18 +168,9 @@ function QuickAddUnit({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-1.5 px-1">
-      <Input
-        ref={inputRef}
-        placeholder="Unit label"
-        autoFocus
-        className="h-7 text-xs"
-      />
+      <Input ref={inputRef} placeholder="Unit label" autoFocus className="h-7 text-xs" />
       <div className="flex items-center gap-1.5">
-        <Button
-          type="submit"
-          size="sm"
-          className="h-6 text-[11px] px-2 flex-1"
-        >
+        <Button type="submit" size="sm" className="h-6 text-[11px] px-2 flex-1">
           Add
         </Button>
         <Button
@@ -221,55 +188,34 @@ function QuickAddUnit({
   );
 }
 
-export function SchedulingBacklog({
-  units,
-  days,
-  onScheduled,
-  onOptimisticAdd,
-}: SchedulingBacklogProps) {
+export function SchedulingBacklog({ units, days, onScheduled }: SchedulingBacklogProps) {
   const { groups, standalone } = groupByProjectAndTask(units);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between px-1">
-        <span className="text-xs font-medium text-muted-foreground">
-          Unscheduled
-        </span>
-        <Badge variant="outline" className="text-[10px] tabular-nums">
-          {units.length}
-        </Badge>
+        <span className="text-xs font-medium text-muted-foreground">Unscheduled</span>
+        <Badge variant="outline" className="text-[10px] tabular-nums">{units.length}</Badge>
       </div>
 
-      <QuickAddUnit onCreated={onScheduled} onOptimisticAdd={onOptimisticAdd} />
+      <QuickAddUnit onCreated={onScheduled} />
 
       {units.length === 0 && (
         <div className="flex flex-col items-center justify-center py-8 text-center">
           <Inbox className="h-8 w-8 text-muted-foreground/30" />
-          <p className="mt-2 text-xs text-muted-foreground">
-            No unscheduled units
-          </p>
+          <p className="mt-2 text-xs text-muted-foreground">No unscheduled units</p>
         </div>
       )}
 
       {standalone.length > 0 && (
         <div>
           <div className="flex items-center gap-2 px-1 mb-1">
-            <div
-              className="h-2 w-2 rounded-full shrink-0"
-              style={{ backgroundColor: STANDALONE_COLOR }}
-            />
-            <span className="text-[11px] font-medium truncate text-muted-foreground">
-              Standalone
-            </span>
+            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: STANDALONE_COLOR }} />
+            <span className="text-[11px] font-medium truncate text-muted-foreground">Standalone</span>
           </div>
           <div className="ml-3 mb-2">
             {standalone.map((unit) => (
-              <UnitAssignRow
-                key={unit.id}
-                unit={unit}
-                days={days}
-                onScheduled={onScheduled}
-              />
+              <UnitAssignRow key={unit.id} unit={unit} days={days} />
             ))}
           </div>
         </div>
@@ -278,27 +224,14 @@ export function SchedulingBacklog({
       {groups.map((pg) => (
         <div key={pg.project.id}>
           <div className="flex items-center gap-2 px-1 mb-1">
-            <div
-              className="h-2 w-2 rounded-full shrink-0"
-              style={{ backgroundColor: pg.project.color }}
-            />
-            <span className="text-[11px] font-medium truncate">
-              {pg.project.name}
-            </span>
+            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: pg.project.color }} />
+            <span className="text-[11px] font-medium truncate">{pg.project.name}</span>
           </div>
-
           {pg.tasks.map((tg) => (
             <div key={tg.taskId} className="ml-3 mb-2">
-              <p className="text-[10px] text-muted-foreground font-medium mb-0.5 truncate">
-                {tg.taskTitle}
-              </p>
+              <p className="text-[10px] text-muted-foreground font-medium mb-0.5 truncate">{tg.taskTitle}</p>
               {tg.units.map((unit) => (
-                <UnitAssignRow
-                  key={unit.id}
-                  unit={unit}
-                  days={days}
-                  onScheduled={onScheduled}
-                />
+                <UnitAssignRow key={unit.id} unit={unit} days={days} />
               ))}
             </div>
           ))}

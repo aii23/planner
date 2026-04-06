@@ -335,6 +335,73 @@ export async function getCarryForwardUnits(weekStartISO: string) {
   });
 }
 
+export async function moveUnitToWeek(scheduledUnitId: string, targetWeekISO: string) {
+  const user = await getCurrentUser();
+
+  const su = await prisma.scheduledUnit.findUnique({
+    where: { id: scheduledUnitId },
+    include: { unit: true, dailyPlan: true },
+  });
+  if (!su) return { error: "Scheduled unit not found" };
+  if (su.dailyPlan.userId !== user.id) return { error: "Not authorized" };
+
+  const targetWeekStart = new Date(targetWeekISO + "T00:00:00.000Z");
+
+  // Get or create the target week's plan
+  let targetPlan = await prisma.weeklyPlan.findUnique({
+    where: { userId_weekStartDate: { userId: user.id, weekStartDate: targetWeekStart } },
+    include: { dailyPlans: { orderBy: { date: "asc" } } },
+  });
+
+  if (!targetPlan) {
+    targetPlan = await prisma.weeklyPlan.create({
+      data: {
+        userId: user.id,
+        weekStartDate: targetWeekStart,
+        targetUnits: 80,
+        dailyPlans: {
+          create: Array.from({ length: 7 }, (_, i) => {
+            const dayDate = addDays(targetWeekStart, i);
+            return {
+              userId: user.id,
+              date: new Date(toDateOnlyISO(dayDate) + "T00:00:00.000Z"),
+              targetUnits: i < 5 ? 16 : 0,
+            };
+          }),
+        },
+      },
+      include: { dailyPlans: { orderBy: { date: "asc" } } },
+    });
+  }
+
+  // Find first weekday (Monday) of target week
+  const targetDailyPlan = targetPlan.dailyPlans[0];
+  if (!targetDailyPlan) return { error: "Target week has no daily plans" };
+
+  const maxOrder = await prisma.scheduledUnit.aggregate({
+    where: { dailyPlanId: targetDailyPlan.id },
+    _max: { sortOrder: true },
+  });
+  const nextOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+
+  await prisma.$transaction([
+    // Remove from current day
+    prisma.scheduledUnit.delete({ where: { id: scheduledUnitId } }),
+    // Add to target week's Monday
+    prisma.scheduledUnit.create({
+      data: { dailyPlanId: targetDailyPlan.id, unitId: su.unitId, sortOrder: nextOrder },
+    }),
+    // Keep unit as scheduled
+    prisma.unit.update({
+      where: { id: su.unitId },
+      data: { status: "scheduled" },
+    }),
+  ]);
+
+  revalidatePath("/weekly-plan");
+  return { success: true };
+}
+
 export async function createQuickUnit(label: string | null) {
   const user = await getCurrentUser();
 

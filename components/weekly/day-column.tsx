@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { GripVertical, X } from "lucide-react";
+import { GripVertical, X, ArrowRight, CheckCircle2, SkipForward } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { getDayName, formatDateShort, isSameDay } from "@/lib/date-utils";
-import { updateDailyTarget, unscheduleUnit, batchReorderUnits } from "@/app/actions/weekly-plan";
+import { getDayName, formatDateShort, isSameDay, addWeeks, toDateOnlyISO } from "@/lib/date-utils";
+import { updateDailyTarget, unscheduleUnit, batchReorderUnits, moveUnitToWeek } from "@/app/actions/weekly-plan";
 import { cn } from "@/lib/utils";
 import {
   DndContext,
@@ -24,43 +24,18 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { usePlannerStore, type ScheduledUnitInfo, type DailyPlanData } from "@/store/planner-store";
 
-interface ScheduledUnitInfo {
-  id: string;
-  sortOrder: number;
-  unit: {
-    id: string;
-    label: string | null;
-    status: string;
-    task: {
-      id: string;
-      title: string;
-      project: { id: string; name: string; color: string };
-    } | null;
-  };
-}
+export type { DailyPlanData };
 
-export interface DailyPlanData {
-  id: string;
-  date: Date;
-  targetUnits: number;
-  scheduledUnits: ScheduledUnitInfo[];
-}
-
-interface DayColumnProps {
-  daily: DailyPlanData;
-  onChanged: () => void;
-}
-
-function SortableUnit({
-  su,
-  isActing,
-  onUnschedule,
-}: {
+interface SortableUnitProps {
   su: ScheduledUnitInfo;
-  isActing: boolean;
   onUnschedule: (id: string) => void;
-}) {
+  onMoveToNextWeek: (id: string) => void;
+  currentMonday: string;
+}
+
+function SortableUnit({ su, onUnschedule, onMoveToNextWeek }: SortableUnitProps) {
   const {
     attributes,
     listeners,
@@ -75,13 +50,18 @@ function SortableUnit({
     transition,
   };
 
+  const isDone = su.unit.status === "completed";
+  const isSkipped = su.unit.status === "skipped";
+  const isDoneOrSkipped = isDone || isSkipped;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
         "group/unit flex items-center gap-2 rounded-md bg-background border border-border/50 px-2.5 py-1.5",
-        isActing && "opacity-50",
+        isDone && "opacity-60 bg-muted/40",
+        isSkipped && "opacity-40 bg-muted/20",
         isDragging && "opacity-50 shadow-lg z-10"
       )}
     >
@@ -97,8 +77,9 @@ function SortableUnit({
         className="h-2 w-2 rounded-full shrink-0"
         style={{ backgroundColor: su.unit.task?.project.color ?? "#94a3b8" }}
       />
+
       <div className="flex-1 min-w-0">
-        <span className="text-xs block truncate">
+        <span className={cn("text-xs block truncate", isDoneOrSkipped && "line-through text-muted-foreground")}>
           {su.unit.label || su.unit.task?.title || "Untitled"}
         </span>
         {su.unit.task && (
@@ -108,106 +89,121 @@ function SortableUnit({
         )}
       </div>
 
-      <div className="flex items-center gap-0 opacity-0 group-hover/unit:opacity-100 transition-opacity shrink-0">
-        <button
-          onClick={() => onUnschedule(su.id)}
-          disabled={isActing}
-          className="p-0.5 rounded hover:bg-destructive/10"
-          title="Unschedule"
-        >
-          <X className="h-3 w-3 text-destructive/70" />
-        </button>
+      <div className="flex items-center gap-0.5 shrink-0">
+        {isDone && <CheckCircle2 className="h-3 w-3 text-green-500" />}
+        {isSkipped && <SkipForward className="h-3 w-3 text-muted-foreground" />}
+
+        <div className="flex items-center gap-0 opacity-0 group-hover/unit:opacity-100 transition-opacity">
+          <button
+            onClick={() => onMoveToNextWeek(su.id)}
+            className="p-0.5 rounded hover:bg-muted"
+            title="Move to next week"
+          >
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+          </button>
+          <button
+            onClick={() => onUnschedule(su.id)}
+            className="p-0.5 rounded hover:bg-destructive/10"
+            title="Unschedule"
+          >
+            <X className="h-3 w-3 text-destructive/70" />
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-export function DayColumn({ daily, onChanged }: DayColumnProps) {
-  const [target, setTarget] = useState(daily.targetUnits);
-  const [saving, setSaving] = useState(false);
-  const [acting, setActing] = useState<string | null>(null);
-  const [items, setItems] = useState(daily.scheduledUnits);
+interface DayColumnProps {
+  daily: DailyPlanData;
+  currentMonday: string;
+}
+
+export function DayColumn({ daily, currentMonday }: DayColumnProps) {
+  const {
+    optimisticSetDailyTarget,
+    optimisticUnscheduleUnit,
+    optimisticReorderDay,
+    optimisticMoveUnitToWeek,
+    weeklyPlan,
+  } = usePlannerStore();
+
+  // Read items from store (daily comes from store-backed plan prop)
+  const [showCompleted, setShowCompleted] = useState(true);
 
   const date = new Date(daily.date);
   const isToday = isSameDay(date, new Date());
-  const scheduledCount = items.length;
-  const atCapacity = scheduledCount >= target && target > 0;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Sync external data changes
-  if (daily.scheduledUnits !== items && daily.scheduledUnits.length !== items.length) {
-    setItems(daily.scheduledUnits);
-  }
-
   const handleDragEnd = useCallback(
-    async (event: DragEndEvent) => {
+    (event: DragEndEvent) => {
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
+      const items = daily.scheduledUnits;
       const oldIndex = items.findIndex((i) => i.id === active.id);
       const newIndex = items.findIndex((i) => i.id === over.id);
       if (oldIndex === -1 || newIndex === -1) return;
 
       const reordered = arrayMove(items, oldIndex, newIndex);
-      setItems(reordered);
-
-      await batchReorderUnits(
-        daily.id,
-        reordered.map((i) => i.id)
-      );
-      onChanged();
+      // Optimistic update immediately
+      optimisticReorderDay(daily.id, reordered.map((i) => i.id));
+      // Fire-and-forget
+      batchReorderUnits(daily.id, reordered.map((i) => i.id));
     },
-    [items, daily.id, onChanged]
+    [daily.scheduledUnits, daily.id, optimisticReorderDay]
   );
 
-  async function handleTargetBlur() {
-    if (target === daily.targetUnits) return;
-    setSaving(true);
-    await updateDailyTarget(daily.id, target);
-    setSaving(false);
-    onChanged();
+  function handleTargetChange(value: number) {
+    optimisticSetDailyTarget(daily.id, value);
+    updateDailyTarget(daily.id, value);
   }
 
-  async function handleUnschedule(suId: string) {
-    setActing(suId);
-    await unscheduleUnit(suId);
-    setActing(null);
-    onChanged();
+  function handleUnschedule(suId: string) {
+    const su = daily.scheduledUnits.find((s) => s.id === suId);
+    if (!su) return;
+    optimisticUnscheduleUnit(suId, su.unit.id);
+    unscheduleUnit(suId);
   }
+
+  function handleMoveToNextWeek(suId: string) {
+    const nextMonday = toDateOnlyISO(addWeeks(new Date(currentMonday + "T00:00:00"), 1));
+    optimisticMoveUnitToWeek(suId, "");
+    moveUnitToWeek(suId, nextMonday);
+  }
+
+  const allItems = daily.scheduledUnits;
+  const visibleItems = showCompleted
+    ? allItems
+    : allItems.filter((s) => s.unit.status !== "completed" && s.unit.status !== "skipped");
+
+  const completedCount = allItems.filter((s) => s.unit.status === "completed").length;
+  const activeCount = allItems.filter((s) => s.unit.status !== "completed" && s.unit.status !== "skipped").length;
+  const atCapacity = allItems.length >= daily.targetUnits && daily.targetUnits > 0;
 
   return (
     <div
       className={cn(
-        "flex flex-col rounded-lg border border-border bg-card p-4 min-w-0 snap-start",
+        "flex flex-col rounded-lg border border-border bg-card p-4 min-w-0",
         isToday && "ring-2 ring-primary/30 border-primary/40"
       )}
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <p
-            className={cn(
-              "text-sm font-semibold",
-              isToday ? "text-primary" : "text-foreground"
-            )}
-          >
+          <p className={cn("text-sm font-semibold", isToday ? "text-primary" : "text-foreground")}>
             {getDayName(date)}
           </p>
           <p className="text-xs text-muted-foreground">{formatDateShort(date)}</p>
-          {isToday && (
-            <Badge variant="secondary" className="text-[10px]">Today</Badge>
-          )}
+          {isToday && <Badge variant="secondary" className="text-[10px]">Today</Badge>}
         </div>
 
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
-            <label
-              htmlFor={`target-${daily.id}`}
-              className="text-[11px] text-muted-foreground"
-            >
+            <label htmlFor={`target-${daily.id}`} className="text-[11px] text-muted-foreground">
               Target
             </label>
             <Input
@@ -215,26 +211,35 @@ export function DayColumn({ daily, onChanged }: DayColumnProps) {
               type="number"
               min={0}
               max={99}
-              value={target}
-              onChange={(e) => setTarget(parseInt((e.target as HTMLInputElement).value, 10) || 0)}
-              onBlur={handleTargetBlur}
-              className={cn("h-6 w-12 text-xs text-center tabular-nums", saving && "opacity-50")}
+              value={daily.targetUnits}
+              onChange={(e) => {
+                const v = parseInt((e.target as HTMLInputElement).value, 10);
+                if (!isNaN(v)) handleTargetChange(v);
+              }}
+              className="h-6 w-12 text-xs text-center tabular-nums"
             />
           </div>
           <Badge
             variant={atCapacity ? "default" : "outline"}
             className="text-[10px] tabular-nums"
           >
-            {scheduledCount}/{target}
+            {allItems.length}/{daily.targetUnits}
           </Badge>
         </div>
       </div>
 
+      {completedCount > 0 && (
+        <button
+          onClick={() => setShowCompleted((v) => !v)}
+          className="text-[10px] text-muted-foreground hover:text-foreground text-left mb-2 transition-colors"
+        >
+          {showCompleted ? "▾" : "▸"} {completedCount} done · {activeCount} active
+        </button>
+      )}
+
       <div className="flex-1 min-h-[80px] rounded border border-dashed border-border/60 bg-muted/20 p-2 space-y-1.5">
-        {scheduledCount === 0 && (
-          <p className="text-xs text-muted-foreground/60 text-center pt-6">
-            No units scheduled
-          </p>
+        {allItems.length === 0 && (
+          <p className="text-xs text-muted-foreground/60 text-center pt-6">No units scheduled</p>
         )}
 
         <DndContext
@@ -243,15 +248,16 @@ export function DayColumn({ daily, onChanged }: DayColumnProps) {
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={items.map((i) => i.id)}
+            items={visibleItems.map((i) => i.id)}
             strategy={verticalListSortingStrategy}
           >
-            {items.map((su) => (
+            {visibleItems.map((su) => (
               <SortableUnit
                 key={su.id}
                 su={su}
-                isActing={acting === su.id}
                 onUnschedule={handleUnschedule}
+                onMoveToNextWeek={handleMoveToNextWeek}
+                currentMonday={currentMonday}
               />
             ))}
           </SortableContext>

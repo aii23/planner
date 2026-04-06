@@ -1,12 +1,12 @@
 import { connection } from "next/server";
-import { getTodayQueue, getUserPreferences } from "@/app/actions/timer";
+import { getTodayAndTomorrowQueues, getUserPreferences } from "@/app/actions/timer";
 import { TimerView } from "@/components/timer/timer-view";
 
 export default async function TodayPage() {
   await connection();
 
-  const [queue, prefs] = await Promise.all([
-    getTodayQueue(),
+  const [{ todayQueue, tomorrowQueue }, prefs] = await Promise.all([
+    getTodayAndTomorrowQueues(),
     getUserPreferences(),
   ]);
 
@@ -20,7 +20,8 @@ export default async function TodayPage() {
       </div>
 
       <TimerView
-        initialQueue={queue}
+        initialQueue={todayQueue}
+        initialTomorrowQueue={tomorrowQueue}
         workDurationMin={prefs.workDurationMin}
         restDurationMin={prefs.restDurationMin}
         notificationSound={prefs.notificationSound}

@@ -134,6 +134,7 @@ model WeeklyPlan {
   weekStartDate DateTime         @map("week_start_date") @db.Date
   targetUnits   Int              @map("target_units")
   status        WeeklyPlanStatus @default(planning)
+  weeklyReview  Json?            @map("weekly_review")
   createdAt     DateTime         @default(now()) @map("created_at")
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -144,11 +145,12 @@ model WeeklyPlan {
 }
 
 model DailyPlan {
-  id           String   @id @default(uuid())
-  weeklyPlanId String   @map("weekly_plan_id")
-  userId       String   @map("user_id")
-  date         DateTime @db.Date
-  targetUnits  Int      @map("target_units")
+  id             String   @id @default(uuid())
+  weeklyPlanId   String   @map("weekly_plan_id")
+  userId         String   @map("user_id")
+  date           DateTime @db.Date
+  targetUnits    Int      @map("target_units")
+  dailyBriefing  Json?    @map("daily_briefing")
 
   weeklyPlan     WeeklyPlan      @relation(fields: [weeklyPlanId], references: [id], onDelete: Cascade)
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -25,6 +25,7 @@ import { DailyCheckin } from "@/components/ai/daily-checkin";
 
 interface TimerViewProps {
   initialQueue: QueueItem[];
+  initialTomorrowQueue?: QueueItem[];
   workDurationMin: number;
   restDurationMin: number;
   notificationSound: boolean;
@@ -32,11 +33,14 @@ interface TimerViewProps {
 
 export function TimerView({
   initialQueue,
+  initialTomorrowQueue = [],
   workDurationMin,
   restDurationMin,
   notificationSound,
 }: TimerViewProps) {
   const [queue, setQueue] = useState<QueueItem[]>(initialQueue);
+  const [tomorrowQueue] = useState<QueueItem[]>(initialTomorrowQueue);
+  const [showTomorrow, setShowTomorrow] = useState(false);
   const [currentUnitId, setCurrentUnitId] = useState<string | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddLabel, setQuickAddLabel] = useState("");
@@ -404,6 +408,43 @@ export function TimerView({
           onSkip={handleSkipFromQueue}
           onReorder={handleReorder}
         />
+
+        {tomorrowQueue.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-border">
+            <button
+              onClick={() => setShowTomorrow((v) => !v)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+            >
+              <Clock className="h-3 w-3" />
+              {showTomorrow ? "▾" : "▸"} Tomorrow — {tomorrowQueue.length} unit{tomorrowQueue.length !== 1 ? "s" : ""}
+            </button>
+            {showTomorrow && (
+              <div className="mt-2 space-y-1">
+                {tomorrowQueue.map((q) => (
+                  <div
+                    key={q.scheduledUnitId}
+                    className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/30 px-2.5 py-1.5 opacity-70"
+                  >
+                    <div
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ backgroundColor: q.unit.task?.project.color ?? "#94a3b8" }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs truncate block">
+                        {q.unit.label || q.unit.task?.title || "Untitled"}
+                      </span>
+                      {q.unit.task && (
+                        <span className="text-[10px] text-muted-foreground truncate block">
+                          {q.unit.task.project.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-4 pt-3 border-t border-border">
           {!showQuickAdd ? (
