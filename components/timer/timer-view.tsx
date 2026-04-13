@@ -5,9 +5,11 @@ import { Plus, Clock, Check, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTimer } from "@/hooks/use-timer";
+import { useIntervalTimer } from "@/hooks/use-interval-timer";
 import { useNotifications } from "@/hooks/use-notifications";
 import { TimerDisplay } from "@/components/timer/timer-display";
 import { TimerControls } from "@/components/timer/timer-controls";
+import { IntervalTimerDisplay } from "@/components/timer/interval-timer-display";
 import { UnitQueue, type QueueItem } from "@/components/timer/unit-queue";
 import { CheckpointPopup } from "@/components/timer/checkpoint-popup";
 import { WorkEndedPopup } from "@/components/timer/work-ended-popup";
@@ -71,6 +73,12 @@ export function TimerView({
   const timer = useTimer({
     workDurationSec: workDurationMin * 60,
     restDurationSec: restDurationMin * 60,
+  });
+
+  const intervalTimer = useIntervalTimer({
+    intervalSec: 20 * 60,
+    timerState: timer.state,
+    onInterval: chime,
   });
 
   // Restore currentUnitId from persisted timer state
@@ -420,6 +428,15 @@ export function TimerView({
           onEndWork={handleEndWork}
           onCompleteUnit={handleCompleteUnit}
         />
+
+        {timer.state !== "IDLE" && (
+          <IntervalTimerDisplay
+            remainingSeconds={intervalTimer.remainingSeconds}
+            cycleCount={intervalTimer.cycleCount}
+            intervalSec={20 * 60}
+            isActive={timer.state === "WORK_RUNNING"}
+          />
+        )}
 
         {remaining > 0 && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
