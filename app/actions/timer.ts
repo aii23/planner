@@ -275,6 +275,22 @@ export async function splitUnit(unitId: string, followUpLabel: string | null) {
   return { success: true, newUnitId: newUnit.id };
 }
 
+export async function getActiveTasksForQuickAdd() {
+  const user = await getCurrentUser();
+
+  const tasks = await prisma.task.findMany({
+    where: { userId: user.id, status: { not: "done" } },
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      title: true,
+      project: { select: { id: true, name: true, color: true } },
+    },
+  });
+
+  return tasks;
+}
+
 export async function saveTimerSession(
   unitId: string | null,
   type: "work" | "rest",
