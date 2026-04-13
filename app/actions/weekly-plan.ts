@@ -188,6 +188,50 @@ export async function scheduleUnit(
   return { success: true };
 }
 
+export async function quickAddUnitToDay(
+  taskId: string,
+  label: string | null,
+  dailyPlanId: string
+) {
+  const user = await getCurrentUser();
+
+  const task = await prisma.task.findFirst({
+    where: { id: taskId, userId: user.id },
+  });
+  if (!task) return { error: "Task not found" };
+
+  const dailyPlan = await prisma.dailyPlan.findFirst({
+    where: { id: dailyPlanId, userId: user.id },
+  });
+  if (!dailyPlan) return { error: "Daily plan not found" };
+
+  const unit = await prisma.unit.create({
+    data: {
+      taskId,
+      userId: user.id,
+      label: label?.trim() || null,
+      status: "scheduled",
+    },
+  });
+
+  const maxOrder = await prisma.scheduledUnit.aggregate({
+    where: { dailyPlanId },
+    _max: { sortOrder: true },
+  });
+
+  const scheduledUnit = await prisma.scheduledUnit.create({
+    data: {
+      dailyPlanId,
+      unitId: unit.id,
+      sortOrder: (maxOrder._max.sortOrder ?? -1) + 1,
+    },
+    select: { id: true, sortOrder: true },
+  });
+
+  revalidatePath("/weekly-plan");
+  return { success: true, unitId: unit.id, scheduledUnitId: scheduledUnit.id, sortOrder: scheduledUnit.sortOrder };
+}
+
 export async function unscheduleUnit(scheduledUnitId: string) {
   const user = await getCurrentUser();
 

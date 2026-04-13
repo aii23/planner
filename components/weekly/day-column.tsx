@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { GripVertical, X, ArrowRight, CheckCircle2, SkipForward } from "lucide-react";
+import { GripVertical, X, ArrowRight, CheckCircle2, SkipForward, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getDayName, formatDateShort, isSameDay, addWeeks, toDateOnlyISO } from "@/lib/date-utils";
-import { updateDailyTarget, unscheduleUnit, batchReorderUnits, moveUnitToWeek } from "@/app/actions/weekly-plan";
+import { updateDailyTarget, unscheduleUnit, batchReorderUnits, moveUnitToWeek, quickAddUnitToDay } from "@/app/actions/weekly-plan";
+import { getActiveTasksForQuickAdd } from "@/app/actions/timer";
 import { cn } from "@/lib/utils";
 import {
   DndContext,
@@ -125,11 +127,19 @@ export function DayColumn({ daily, currentMonday }: DayColumnProps) {
     optimisticUnscheduleUnit,
     optimisticReorderDay,
     optimisticMoveUnitToWeek,
+    optimisticAddNewUnitToDay,
     weeklyPlan,
   } = usePlannerStore();
 
-  // Read items from store (daily comes from store-backed plan prop)
   const [showCompleted, setShowCompleted] = useState(true);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddLabel, setQuickAddLabel] = useState("");
+  const [quickAddTaskId, setQuickAddTaskId] = useState("");
+  const [quickAddPending, setQuickAddPending] = useState(false);
+  const [allTasks, setAllTasks] = useState<
+    { id: string; title: string; project: { id: string; name: string; color: string } }[]
+  >([]);
+  const [allTasksLoading, setAllTasksLoading] = useState(false);
 
   const date = new Date(daily.date);
   const isToday = isSameDay(date, new Date());
@@ -175,6 +185,50 @@ export function DayColumn({ daily, currentMonday }: DayColumnProps) {
     optimisticMoveUnitToWeek(suId, "");
     moveUnitToWeek(suId, nextMonday);
   }
+
+  async function openQuickAdd() {
+    setShowQuickAdd(true);
+    setAllTasksLoading(true);
+    try {
+      const tasks = await getActiveTasksForQuickAdd();
+      setAllTasks(tasks);
+    } finally {
+      setAllTasksLoading(false);
+    }
+  }
+
+  function cancelQuickAdd() {
+    setShowQuickAdd(false);
+    setQuickAddLabel("");
+    setQuickAddTaskId("");
+  }
+
+  async function handleQuickAdd() {
+    if (!quickAddTaskId) return;
+    setQuickAddPending(true);
+
+    const task = allTasks.find((t) => t.id === quickAddTaskId);
+    const tempId = `opt-${Date.now()}`;
+    if (task) {
+      optimisticAddNewUnitToDay(daily.id, tempId, {
+        id: tempId,
+        label: quickAddLabel.trim() || null,
+        task,
+      });
+    }
+
+    cancelQuickAdd();
+    await quickAddUnitToDay(quickAddTaskId, quickAddLabel.trim() || null, daily.id);
+    setQuickAddPending(false);
+  }
+
+  const tasksByProject = allTasks.reduce<
+    Record<string, { project: { id: string; name: string; color: string }; tasks: typeof allTasks }>
+  >((acc, t) => {
+    if (!acc[t.project.id]) acc[t.project.id] = { project: t.project, tasks: [] };
+    acc[t.project.id].tasks.push(t);
+    return acc;
+  }, {});
 
   const allItems = daily.scheduledUnits;
   const visibleItems = showCompleted
@@ -262,6 +316,66 @@ export function DayColumn({ daily, currentMonday }: DayColumnProps) {
             ))}
           </SortableContext>
         </DndContext>
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-border">
+        {!showQuickAdd ? (
+          <button
+            onClick={openQuickAdd}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Quick add unit
+          </button>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs font-medium">Quick Add Unit</p>
+            <Input
+              placeholder="Label (optional)"
+              value={quickAddLabel}
+              onChange={(e) => setQuickAddLabel((e.target as HTMLInputElement).value)}
+              className="h-7 text-xs"
+              autoFocus
+            />
+            <select
+              value={quickAddTaskId}
+              onChange={(e) => setQuickAddTaskId(e.target.value)}
+              className="w-full h-7 text-xs rounded-md border border-border bg-background px-2"
+              disabled={allTasksLoading}
+            >
+              <option value="">
+                {allTasksLoading ? "Loading tasks…" : "Select task…"}
+              </option>
+              {Object.values(tasksByProject).map(({ project, tasks }) => (
+                <optgroup key={project.id} label={project.name}>
+                  {tasks.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={handleQuickAdd}
+                disabled={!quickAddTaskId || quickAddPending}
+                className="h-7 text-xs flex-1"
+              >
+                {quickAddPending ? "Adding…" : "Add"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={cancelQuickAdd}
+                className="h-7 text-xs"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

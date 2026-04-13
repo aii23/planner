@@ -93,6 +93,11 @@ interface PlannerStore {
   optimisticAddBacklogUnit: (unit: BacklogUnitItem) => void;
   optimisticMarkUnitStatus: (unitId: string, status: string) => void;
   optimisticMoveUnitToWeek: (scheduledUnitId: string, unitId: string) => void;
+  optimisticAddNewUnitToDay: (
+    dailyPlanId: string,
+    tempScheduledUnitId: string,
+    unit: { id: string; label: string | null; task: TaskInfo | null }
+  ) => void;
 
   // Today queue
   todayQueue: QueueItem[];
@@ -228,6 +233,26 @@ export const usePlannerStore = create<PlannerStore>((set, get) => ({
             ...dp,
             scheduledUnits: dp.scheduledUnits.filter((s) => s.id !== scheduledUnitId),
           })),
+        },
+      };
+    }),
+
+  optimisticAddNewUnitToDay: (dailyPlanId, tempScheduledUnitId, unit) =>
+    set((state) => {
+      if (!state.weeklyPlan) return state;
+      const newScheduledUnit: ScheduledUnitInfo = {
+        id: tempScheduledUnitId,
+        sortOrder: 9999,
+        unit: { ...unit, status: "scheduled" },
+      };
+      return {
+        weeklyPlan: {
+          ...state.weeklyPlan,
+          dailyPlans: state.weeklyPlan.dailyPlans.map((dp) =>
+            dp.id === dailyPlanId
+              ? { ...dp, scheduledUnits: [...dp.scheduledUnits, newScheduledUnit] }
+              : dp
+          ),
         },
       };
     }),
