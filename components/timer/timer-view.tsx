@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, Clock } from "lucide-react";
+import { Plus, Clock, Check, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTimer } from "@/hooks/use-timer";
@@ -21,6 +21,7 @@ import {
   splitUnit,
   reorderTodayQueue,
   getActiveTasksForQuickAdd,
+  pullUnitToToday,
 } from "@/app/actions/timer";
 import { DailyCheckin } from "@/components/ai/daily-checkin";
 
@@ -40,7 +41,8 @@ export function TimerView({
   notificationSound,
 }: TimerViewProps) {
   const [queue, setQueue] = useState<QueueItem[]>(initialQueue);
-  const [tomorrowQueue] = useState<QueueItem[]>(initialTomorrowQueue);
+  const [tomorrowQueue, setTomorrowQueue] = useState<QueueItem[]>(initialTomorrowQueue);
+  const [tomorrowPendingId, setTomorrowPendingId] = useState<string | null>(null);
   const [showTomorrow, setShowTomorrow] = useState(false);
   const [currentUnitId, setCurrentUnitId] = useState<string | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -281,6 +283,23 @@ export function TimerView({
     await refreshQueue();
   }
 
+  async function handleCompleteTomorrow(scheduledUnitId: string, unitId: string) {
+    setTomorrowPendingId(scheduledUnitId);
+    await completeCurrentUnit(unitId);
+    setTomorrowQueue((prev) => prev.filter((q) => q.scheduledUnitId !== scheduledUnitId));
+    setTomorrowPendingId(null);
+  }
+
+  async function handlePullToToday(scheduledUnitId: string) {
+    setTomorrowPendingId(scheduledUnitId);
+    const result = await pullUnitToToday(scheduledUnitId);
+    if (!("error" in result)) {
+      setTomorrowQueue((prev) => prev.filter((q) => q.scheduledUnitId !== scheduledUnitId));
+      await refreshQueue();
+    }
+    setTomorrowPendingId(null);
+  }
+
   const handleReorder = useCallback(
     async (orderedScheduledUnitIds: string[]) => {
       const reordered = orderedScheduledUnitIds
@@ -437,27 +456,48 @@ export function TimerView({
             </button>
             {showTomorrow && (
               <div className="mt-2 space-y-1">
-                {tomorrowQueue.map((q) => (
-                  <div
-                    key={q.scheduledUnitId}
-                    className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/30 px-2.5 py-1.5 opacity-70"
-                  >
+                {tomorrowQueue.map((q) => {
+                  const isPending = tomorrowPendingId === q.scheduledUnitId;
+                  return (
                     <div
-                      className="h-2 w-2 rounded-full shrink-0"
-                      style={{ backgroundColor: q.unit.task?.project.color ?? "#94a3b8" }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs truncate block">
-                        {q.unit.label || q.unit.task?.title || "Untitled"}
-                      </span>
-                      {q.unit.task && (
-                        <span className="text-[10px] text-muted-foreground truncate block">
-                          {q.unit.task.project.name}
+                      key={q.scheduledUnitId}
+                      className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/30 px-2.5 py-1.5 opacity-70 hover:opacity-100 transition-opacity"
+                    >
+                      <div
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: q.unit.task?.project.color ?? "#94a3b8" }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs truncate block">
+                          {q.unit.label || q.unit.task?.title || "Untitled"}
                         </span>
-                      )}
+                        {q.unit.task && (
+                          <span className="text-[10px] text-muted-foreground truncate block">
+                            {q.unit.task.project.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => handlePullToToday(q.scheduledUnitId)}
+                          disabled={isPending}
+                          title="Pull to today"
+                          className="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-40"
+                        >
+                          <ArrowUp className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => handleCompleteTomorrow(q.scheduledUnitId, q.unit.id)}
+                          disabled={isPending}
+                          title="Mark complete"
+                          className="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-green-600 hover:bg-accent transition-colors disabled:opacity-40"
+                        >
+                          <Check className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

@@ -275,6 +275,40 @@ export async function splitUnit(unitId: string, followUpLabel: string | null) {
   return { success: true, newUnitId: newUnit.id };
 }
 
+export async function pullUnitToToday(scheduledUnitId: string) {
+  const user = await getCurrentUser();
+  const tz = await getUserTimezone();
+  const now = new Date();
+  const todayISO = toDateOnlyISOInTz(now, tz);
+
+  const su = await prisma.scheduledUnit.findUnique({
+    where: { id: scheduledUnitId },
+    include: { unit: true },
+  });
+  if (!su || su.unit.userId !== user.id) return { error: "Not authorized" };
+
+  const todayPlan = await prisma.dailyPlan.findFirst({
+    where: { userId: user.id, date: new Date(todayISO + "T00:00:00.000Z") },
+  });
+  if (!todayPlan) return { error: "No plan exists for today" };
+
+  const maxOrder = await prisma.scheduledUnit.aggregate({
+    where: { dailyPlanId: todayPlan.id },
+    _max: { sortOrder: true },
+  });
+
+  await prisma.scheduledUnit.update({
+    where: { id: scheduledUnitId },
+    data: {
+      dailyPlanId: todayPlan.id,
+      sortOrder: (maxOrder._max.sortOrder ?? -1) + 1,
+    },
+  });
+
+  revalidatePath("/today");
+  return { success: true };
+}
+
 export async function getActiveTasksForQuickAdd() {
   const user = await getCurrentUser();
 
